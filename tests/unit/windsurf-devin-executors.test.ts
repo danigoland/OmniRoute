@@ -3,8 +3,13 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createServer, type Server } from "node:http";
 import { gunzipSync } from "node:zlib";
-import { WindsurfExecutor } from "../../open-sse/executors/windsurf.ts";
+import {
+  WindsurfExecutor,
+  WINDSURF_PROBE_URL,
+  buildWindsurfProbeBody,
+} from "../../open-sse/executors/windsurf.ts";
 import { windsurfProvider } from "../../open-sse/config/providers/registry/windsurf/index.ts";
+import { OAUTH_TEST_CONFIG } from "../../src/app/api/providers/[id]/test/oauthTestConfig.ts";
 
 // ─── Model alias resolution (windsurf) ───────────────────────────────────────
 // We exercise the alias map indirectly through the exported class because
@@ -703,5 +708,59 @@ test("WindsurfExecutor sends a system prompt whenever tools are present", async 
       { role: "user", content: "hi" },
     ]),
     "CUSTOM RULES"
+  );
+});
+
+// ─── Dashboard connection probe ──────────────────────────────────────────────
+// The windsurf connection test used to fall through to "Provider test not
+// supported" (red ERR badge on a working connection). Unlike devin-cli, the
+// direct Devin transport has a real auth RPC, so it gets a live probe rather
+// than a checkExpiry stub — checkExpiry cannot tell a revoked-but-unexpired
+// token from a working one.
+test("windsurf exposes a live auth probe for the dashboard connection test", () => {
+  assert.equal(
+    WINDSURF_PROBE_URL,
+    "https://server.codeium.com/exa.auth_pb.AuthService/GetUserJwt",
+    "probe must hit the same AuthService the executor uses"
+  );
+
+  // The credential travels INSIDE the protobuf payload, so the body must be
+  // built per connection — a static body cannot carry it.
+  const body = buildWindsurfProbeBody("probe-token");
+  assert.ok(body instanceof Uint8Array && body.length > 0, "probe body must be encoded bytes");
+  const wire = Buffer.from(body).toString("utf8");
+  assert.match(wire, /devin-session-token\$probe-token/, "token must be normalized into the body");
+
+  // A bare token gains the session prefix; an already-prefixed one is untouched.
+  const prefixed = Buffer.from(buildWindsurfProbeBody("devin-session-token$abc")).toString("utf8");
+  assert.equal(
+    prefixed.match(/devin-session-token\$/g)?.length,
+    1,
+    "an already-prefixed token must not be double-prefixed"
+  );
+});
+
+test("windsurf is wired into OAUTH_TEST_CONFIG with a dynamic body", () => {
+  const cfg = (
+    OAUTH_TEST_CONFIG as Record<
+      string,
+      {
+        method?: string;
+        checkExpiry?: boolean;
+        getBody?: (connection: { accessToken?: string }) => Uint8Array;
+      }
+    >
+  ).windsurf;
+  assert.ok(cfg, "windsurf must have a test config (was: 'Provider test not supported')");
+  assert.equal(cfg.method, "POST", "GetUserJwt is a POST RPC");
+  assert.equal(typeof cfg.getBody, "function", "body must be built from the live connection");
+  assert.equal(cfg.checkExpiry, undefined, "a real probe must not short-circuit on expiry alone");
+
+  const encoded = cfg.getBody?.({ accessToken: "tok-from-connection" });
+  assert.ok(encoded, "getBody must return an encoded payload");
+  assert.match(
+    Buffer.from(encoded).toString("utf8"),
+    /tok-from-connection/,
+    "getBody must encode the connection's own credential"
   );
 });

@@ -82,104 +82,172 @@ class InvalidRequestError extends Error {}
 // Windsurf API accepts dash-notation modelUids (e.g. "gpt-5-5-high").
 // This map normalises dot→dash for newer models and handles legacy aliases.
 const MODEL_ALIAS_MAP: Record<string, string> = {
-  // ── SWE ─────────────────────────────────────────────────────────────────
-  "swe-1.6-fast": "swe-1-6-fast",
-  "swe-1.6": "swe-1-6",
-  "swe-1.5-fast": "swe-1p5", // fast variant
-  "swe-1.5": "swe-1p5",
-  // ── Claude Opus 4.7 ──────────────────────────────────────────────────────
-  "claude-opus-4.7-max": "claude-opus-4-7-max",
-  "claude-opus-4.7-xhigh": "claude-opus-4-7-xhigh",
+  // ── Claude ────────────────────────────────────────────────────────────
+  "claude-4.5-haiku": "MODEL_PRIVATE_11", // legacy alias (not in live catalog)
+  "claude-4.5-opus": "MODEL_CLAUDE_4_5_OPUS", // legacy alias (not in live catalog)
+  "claude-4.5-opus-thinking": "MODEL_CLAUDE_4_5_OPUS_THINKING", // legacy alias (not in live catalog)
+  "claude-4.5-sonnet": "MODEL_PRIVATE_2", // legacy alias (not in live catalog)
+  "claude-4.5-sonnet-thinking": "MODEL_PRIVATE_3", // legacy alias (not in live catalog)
+  "claude-haiku-4.5": "MODEL_PRIVATE_11", // legacy alias (not in live catalog)
+  "claude-opus-4.5-thinking": "MODEL_CLAUDE_4_5_OPUS_THINKING", // legacy alias (not in live catalog)
+  "claude-opus-4.6": "claude-opus-4-6",
+  "claude-opus-4.6-1m": "claude-opus-4-6-1m",
+  "claude-opus-4.6-thinking": "claude-opus-4-6-thinking",
+  "claude-opus-4.6-thinking-1m": "claude-opus-4-6-thinking-1m",
   "claude-opus-4.7-high": "claude-opus-4-7-high",
-  "claude-opus-4.7-medium": "claude-opus-4-7-medium",
   "claude-opus-4.7-low": "claude-opus-4-7-low",
-  "claude-opus-4.7-review": "opus-4-7-review",
-  // ── Claude Opus/Sonnet 4.6 ───────────────────────────────────────────────
-  "claude-sonnet-4.6-thinking-1m": "claude-sonnet-4-6-thinking-1m",
+  "claude-opus-4.7-max": "claude-opus-4-7-max",
+  "claude-opus-4.7-medium": "claude-opus-4-7-medium",
+  "claude-opus-4.7-review": "opus-4-7-review", // legacy alias (not in live catalog)
+  "claude-opus-4.7-xhigh": "claude-opus-4-7-xhigh",
+  "claude-opus-4.8-high": "claude-opus-4-8-high",
+  "claude-opus-4.8-high-fast": "claude-opus-4-8-high-fast",
+  "claude-opus-4.8-low": "claude-opus-4-8-low",
+  "claude-opus-4.8-low-fast": "claude-opus-4-8-low-fast",
+  "claude-opus-4.8-max": "claude-opus-4-8-max",
+  "claude-opus-4.8-max-fast": "claude-opus-4-8-max-fast",
+  "claude-opus-4.8-medium": "claude-opus-4-8-medium",
+  "claude-opus-4.8-medium-fast": "claude-opus-4-8-medium-fast",
+  "claude-opus-4.8-xhigh": "claude-opus-4-8-xhigh",
+  "claude-opus-4.8-xhigh-fast": "claude-opus-4-8-xhigh-fast",
+  "claude-sonnet-4.5-thinking": "MODEL_PRIVATE_3", // legacy alias (not in live catalog)
+  "claude-sonnet-4.6": "claude-sonnet-4-6",
   "claude-sonnet-4.6-1m": "claude-sonnet-4-6-1m",
   "claude-sonnet-4.6-thinking": "claude-sonnet-4-6-thinking",
-  "claude-sonnet-4.6": "claude-sonnet-4-6",
-  "claude-opus-4.6-thinking": "claude-opus-4-6-thinking",
-  "claude-opus-4.6": "claude-opus-4-6",
-  // ── Claude 4.5 ───────────────────────────────────────────────────────────
-  "claude-opus-4.5-thinking": "MODEL_CLAUDE_4_5_OPUS_THINKING",
-  "claude-opus-4.5": "MODEL_CLAUDE_4_5_OPUS",
-  "claude-sonnet-4.5-thinking": "MODEL_PRIVATE_3",
-  "claude-sonnet-4.5": "MODEL_PRIVATE_2",
-  "claude-haiku-4.5": "MODEL_PRIVATE_11",
-  // backward-compat flat names
-  "claude-4.5-opus-thinking": "MODEL_CLAUDE_4_5_OPUS_THINKING",
-  "claude-4.5-opus": "MODEL_CLAUDE_4_5_OPUS",
-  "claude-4.5-sonnet-thinking": "MODEL_PRIVATE_3",
-  "claude-4.5-sonnet": "MODEL_PRIVATE_2",
-  "claude-4.5-haiku": "MODEL_PRIVATE_11",
-  // ── GPT-5.5 ──────────────────────────────────────────────────────────────
-  "gpt-5.5-xhigh-fast": "gpt-5-5-xhigh-priority",
-  "gpt-5.5-high-fast": "gpt-5-5-high-priority",
-  "gpt-5.5-medium-fast": "gpt-5-5-medium-priority",
-  "gpt-5.5-low-fast": "gpt-5-5-low-priority",
-  "gpt-5.5-none-fast": "gpt-5-5-none-priority",
-  "gpt-5.5-xhigh": "gpt-5-5-xhigh",
-  "gpt-5.5-high": "gpt-5-5-high",
-  "gpt-5.5-medium": "gpt-5-5-medium",
-  "gpt-5.5-low": "gpt-5-5-low",
-  "gpt-5.5-none": "gpt-5-5-none",
-  "gpt-5.5-review": "gpt-5-5-review",
-  "gpt-5.5": "gpt-5-5-medium", // default effort level
-  // ── GPT-5.4 ──────────────────────────────────────────────────────────────
-  "gpt-5.4-xhigh-fast": "gpt-5-4-xhigh-priority",
-  "gpt-5.4-high-fast": "gpt-5-4-high-priority",
-  "gpt-5.4-medium-fast": "gpt-5-4-medium-priority",
-  "gpt-5.4-low-fast": "gpt-5-4-low-priority",
-  "gpt-5.4-none-fast": "gpt-5-4-none-priority",
-  "gpt-5.4-xhigh": "gpt-5-4-xhigh",
-  "gpt-5.4-high": "gpt-5-4-high",
-  "gpt-5.4-medium": "gpt-5-4-medium",
-  "gpt-5.4-low": "gpt-5-4-low",
-  "gpt-5.4-none": "gpt-5-4-none",
-  "gpt-5.4-mini-xhigh": "gpt-5-4-mini-xhigh",
-  "gpt-5.4-mini-high": "gpt-5-4-mini-high",
-  "gpt-5.4-mini-medium": "gpt-5-4-mini-medium",
-  "gpt-5.4-mini-low": "gpt-5-4-mini-low",
-  "gpt-5.4": "gpt-5-4-medium", // default effort level
-  // ── GPT-5.3-Codex ────────────────────────────────────────────────────────
-  "gpt-5.3-codex-xhigh-fast": "gpt-5-3-codex-xhigh-priority",
-  "gpt-5.3-codex-high-fast": "gpt-5-3-codex-high-priority",
-  "gpt-5.3-codex-medium-fast": "gpt-5-3-codex-medium-priority",
-  "gpt-5.3-codex-low-fast": "gpt-5-3-codex-low-priority",
-  "gpt-5.3-codex-xhigh": "gpt-5-3-codex-xhigh",
-  "gpt-5.3-codex-high": "gpt-5-3-codex-high",
-  "gpt-5.3-codex-medium": "gpt-5-3-codex-medium",
-  "gpt-5.3-codex-low": "gpt-5-3-codex-low",
-  "gpt-5.3-codex": "gpt-5-3-codex-medium",
-  // ── GPT-5.2 ──────────────────────────────────────────────────────────────
-  "gpt-5.2-xhigh": "MODEL_GPT_5_2_XHIGH",
-  "gpt-5.2-high": "MODEL_GPT_5_2_HIGH",
-  "gpt-5.2-medium": "MODEL_GPT_5_2_MEDIUM",
-  "gpt-5.2-low": "MODEL_GPT_5_2_LOW",
-  "gpt-5.2-none": "MODEL_GPT_5_2_NONE",
-  "gpt-5.2": "MODEL_GPT_5_2_MEDIUM",
-  // ── GPT-5 ────────────────────────────────────────────────────────────────
-  "gpt-5": "gpt-5",
-  // ── GPT-4.1 / 4o ─────────────────────────────────────────────────────────
-  "gpt-4.1": "MODEL_CHAT_GPT_4_1_2025_04_14",
-  "gpt-4.1-mini": "gpt-4.1-mini",
-  "gpt-4o": "MODEL_CHAT_GPT_4O_2024_08_06",
-  // ── Gemini ────────────────────────────────────────────────────────────────
+  "claude-sonnet-4.6-thinking-1m": "claude-sonnet-4-6-thinking-1m",
+  // ── GLM ───────────────────────────────────────────────────────────────
+  "glm-5.1": "glm-5-1", // legacy alias (not in live catalog)
+  "glm-5.2": "glm-5-2",
+  "glm-5.2-1m": "glm-5-2-1m",
+  "glm-5.2-max": "glm-5-2-max",
+  "glm-5.2-max-1m": "glm-5-2-max-1m",
+  "glm-5.2-none": "glm-5-2-none",
+  "glm-5.2-none-1m": "glm-5-2-none-1m",
+  // ── Gemini ────────────────────────────────────────────────────────────
+  "gemini-2.5-pro": "MODEL_GOOGLE_GEMINI_2_5_PRO", // legacy alias (not in live catalog)
+  "gemini-3.0-flash-high": "MODEL_GOOGLE_GEMINI_3_0_FLASH_HIGH", // legacy alias (not in live catalog)
+  "gemini-3.0-flash-low": "MODEL_GOOGLE_GEMINI_3_0_FLASH_LOW", // legacy alias (not in live catalog)
+  "gemini-3.0-flash-medium": "MODEL_GOOGLE_GEMINI_3_0_FLASH_MEDIUM", // legacy alias (not in live catalog)
+  "gemini-3.0-flash-minimal": "MODEL_GOOGLE_GEMINI_3_0_FLASH_MINIMAL", // legacy alias (not in live catalog)
+  "gemini-3.1-pro": "gemini-3-1-pro-high", // legacy alias (not in live catalog)
   "gemini-3.1-pro-high": "gemini-3-1-pro-high",
   "gemini-3.1-pro-low": "gemini-3-1-pro-low",
-  "gemini-3.1-pro": "gemini-3-1-pro-high",
-  "gemini-3.0-flash-high": "MODEL_GOOGLE_GEMINI_3_0_FLASH_HIGH",
-  "gemini-3.0-flash-medium": "MODEL_GOOGLE_GEMINI_3_0_FLASH_MEDIUM",
-  "gemini-3.0-flash-low": "MODEL_GOOGLE_GEMINI_3_0_FLASH_LOW",
-  "gemini-3.0-flash-minimal": "MODEL_GOOGLE_GEMINI_3_0_FLASH_MINIMAL",
-  "gemini-3.0-flash": "MODEL_GOOGLE_GEMINI_3_0_FLASH_HIGH",
-  "gemini-2.5-pro": "MODEL_GOOGLE_GEMINI_2_5_PRO",
-  // ── Others ───────────────────────────────────────────────────────────────
-  "deepseek-v4": "deepseek-v4",
-  "kimi-k2.6": "kimi-k2-6",
-  "kimi-k2.5": "kimi-k2-5",
-  "glm-5.1": "glm-5-1",
+  "gemini-3.5-flash-high": "gemini-3-5-flash-high",
+  "gemini-3.5-flash-low": "gemini-3-5-flash-low",
+  "gemini-3.5-flash-medium": "gemini-3-5-flash-medium",
+  "gemini-3.5-flash-minimal": "gemini-3-5-flash-minimal",
+  "gemini-3.6-flash-high": "gemini-3-6-flash-high",
+  "gemini-3.6-flash-low": "gemini-3-6-flash-low",
+  "gemini-3.6-flash-medium": "gemini-3-6-flash-medium",
+  "gemini-3.6-flash-minimal": "gemini-3-6-flash-minimal",
+  // ── Grok ──────────────────────────────────────────────────────────────
+  "grok-4.5-high": "grok-4-5-high",
+  "grok-4.5-low": "grok-4-5-low",
+  "grok-4.5-medium": "grok-4-5-medium",
+  // ── Kimi ──────────────────────────────────────────────────────────────
+  "kimi-k2.5": "kimi-k2-5", // legacy alias (not in live catalog)
+  "kimi-k2.6": "kimi-k2-6", // legacy alias (not in live catalog)
+  // ── OpenAI ────────────────────────────────────────────────────────────
+  "gpt-4.1": "MODEL_CHAT_GPT_4_1_2025_04_14", // legacy alias (not in live catalog)
+  "gpt-4.1-mini": "gpt-4.1-mini", // legacy alias (not in live catalog)
+  "gpt-4o": "MODEL_CHAT_GPT_4O_2024_08_06", // legacy alias (not in live catalog)
+  "gpt-5": "gpt-5", // legacy alias (not in live catalog)
+  "gpt-5.2-high": "MODEL_GPT_5_2_HIGH", // legacy alias (not in live catalog)
+  "gpt-5.2-low": "MODEL_GPT_5_2_LOW", // legacy alias (not in live catalog)
+  "gpt-5.2-medium": "MODEL_GPT_5_2_MEDIUM", // legacy alias (not in live catalog)
+  "gpt-5.2-none": "MODEL_GPT_5_2_NONE", // legacy alias (not in live catalog)
+  "gpt-5.2-xhigh": "MODEL_GPT_5_2_XHIGH", // legacy alias (not in live catalog)
+  "gpt-5.3-codex": "gpt-5-3-codex-medium", // legacy alias (not in live catalog)
+  "gpt-5.3-codex-high": "gpt-5-3-codex-high",
+  "gpt-5.3-codex-high-fast": "gpt-5-3-codex-high-priority", // legacy alias (not in live catalog)
+  "gpt-5.3-codex-high-priority": "gpt-5-3-codex-high-priority",
+  "gpt-5.3-codex-low": "gpt-5-3-codex-low",
+  "gpt-5.3-codex-low-fast": "gpt-5-3-codex-low-priority", // legacy alias (not in live catalog)
+  "gpt-5.3-codex-low-priority": "gpt-5-3-codex-low-priority",
+  "gpt-5.3-codex-medium": "gpt-5-3-codex-medium",
+  "gpt-5.3-codex-medium-fast": "gpt-5-3-codex-medium-priority", // legacy alias (not in live catalog)
+  "gpt-5.3-codex-medium-priority": "gpt-5-3-codex-medium-priority",
+  "gpt-5.3-codex-xhigh": "gpt-5-3-codex-xhigh",
+  "gpt-5.3-codex-xhigh-fast": "gpt-5-3-codex-xhigh-priority", // legacy alias (not in live catalog)
+  "gpt-5.3-codex-xhigh-priority": "gpt-5-3-codex-xhigh-priority",
+  "gpt-5.4": "gpt-5-4-medium", // legacy alias (not in live catalog)
+  "gpt-5.4-high": "gpt-5-4-high",
+  "gpt-5.4-high-fast": "gpt-5-4-high-priority", // legacy alias (not in live catalog)
+  "gpt-5.4-high-priority": "gpt-5-4-high-priority",
+  "gpt-5.4-low": "gpt-5-4-low",
+  "gpt-5.4-low-fast": "gpt-5-4-low-priority", // legacy alias (not in live catalog)
+  "gpt-5.4-low-priority": "gpt-5-4-low-priority",
+  "gpt-5.4-medium": "gpt-5-4-medium",
+  "gpt-5.4-medium-fast": "gpt-5-4-medium-priority", // legacy alias (not in live catalog)
+  "gpt-5.4-medium-priority": "gpt-5-4-medium-priority",
+  "gpt-5.4-mini-high": "gpt-5-4-mini-high",
+  "gpt-5.4-mini-low": "gpt-5-4-mini-low",
+  "gpt-5.4-mini-medium": "gpt-5-4-mini-medium",
+  "gpt-5.4-mini-xhigh": "gpt-5-4-mini-xhigh",
+  "gpt-5.4-none": "gpt-5-4-none",
+  "gpt-5.4-none-fast": "gpt-5-4-none-priority", // legacy alias (not in live catalog)
+  "gpt-5.4-none-priority": "gpt-5-4-none-priority",
+  "gpt-5.4-xhigh": "gpt-5-4-xhigh",
+  "gpt-5.4-xhigh-fast": "gpt-5-4-xhigh-priority", // legacy alias (not in live catalog)
+  "gpt-5.4-xhigh-priority": "gpt-5-4-xhigh-priority",
+  "gpt-5.5": "gpt-5-5-medium", // legacy alias (not in live catalog)
+  "gpt-5.5-high": "gpt-5-5-high",
+  "gpt-5.5-high-fast": "gpt-5-5-high-priority", // legacy alias (not in live catalog)
+  "gpt-5.5-high-priority": "gpt-5-5-high-priority",
+  "gpt-5.5-low": "gpt-5-5-low",
+  "gpt-5.5-low-fast": "gpt-5-5-low-priority", // legacy alias (not in live catalog)
+  "gpt-5.5-low-priority": "gpt-5-5-low-priority",
+  "gpt-5.5-medium": "gpt-5-5-medium",
+  "gpt-5.5-medium-fast": "gpt-5-5-medium-priority", // legacy alias (not in live catalog)
+  "gpt-5.5-medium-priority": "gpt-5-5-medium-priority",
+  "gpt-5.5-none": "gpt-5-5-none",
+  "gpt-5.5-none-fast": "gpt-5-5-none-priority", // legacy alias (not in live catalog)
+  "gpt-5.5-none-priority": "gpt-5-5-none-priority",
+  "gpt-5.5-review": "gpt-5-5-review", // legacy alias (not in live catalog)
+  "gpt-5.5-xhigh": "gpt-5-5-xhigh",
+  "gpt-5.5-xhigh-fast": "gpt-5-5-xhigh-priority", // legacy alias (not in live catalog)
+  "gpt-5.5-xhigh-priority": "gpt-5-5-xhigh-priority",
+  "gpt-5.6-luna-high": "gpt-5-6-luna-high",
+  "gpt-5.6-luna-high-priority": "gpt-5-6-luna-high-priority",
+  "gpt-5.6-luna-low": "gpt-5-6-luna-low",
+  "gpt-5.6-luna-low-priority": "gpt-5-6-luna-low-priority",
+  "gpt-5.6-luna-max": "gpt-5-6-luna-max",
+  "gpt-5.6-luna-medium": "gpt-5-6-luna-medium",
+  "gpt-5.6-luna-medium-priority": "gpt-5-6-luna-medium-priority",
+  "gpt-5.6-luna-none": "gpt-5-6-luna-none",
+  "gpt-5.6-luna-none-priority": "gpt-5-6-luna-none-priority",
+  "gpt-5.6-luna-xhigh": "gpt-5-6-luna-xhigh",
+  "gpt-5.6-luna-xhigh-priority": "gpt-5-6-luna-xhigh-priority",
+  "gpt-5.6-sol-high": "gpt-5-6-sol-high",
+  "gpt-5.6-sol-high-priority": "gpt-5-6-sol-high-priority",
+  "gpt-5.6-sol-low": "gpt-5-6-sol-low",
+  "gpt-5.6-sol-low-priority": "gpt-5-6-sol-low-priority",
+  "gpt-5.6-sol-max": "gpt-5-6-sol-max",
+  "gpt-5.6-sol-medium": "gpt-5-6-sol-medium",
+  "gpt-5.6-sol-medium-priority": "gpt-5-6-sol-medium-priority",
+  "gpt-5.6-sol-none": "gpt-5-6-sol-none",
+  "gpt-5.6-sol-none-priority": "gpt-5-6-sol-none-priority",
+  "gpt-5.6-sol-xhigh": "gpt-5-6-sol-xhigh",
+  "gpt-5.6-sol-xhigh-priority": "gpt-5-6-sol-xhigh-priority",
+  "gpt-5.6-terra-high": "gpt-5-6-terra-high",
+  "gpt-5.6-terra-high-priority": "gpt-5-6-terra-high-priority",
+  "gpt-5.6-terra-low": "gpt-5-6-terra-low",
+  "gpt-5.6-terra-low-priority": "gpt-5-6-terra-low-priority",
+  "gpt-5.6-terra-max": "gpt-5-6-terra-max",
+  "gpt-5.6-terra-medium": "gpt-5-6-terra-medium",
+  "gpt-5.6-terra-medium-priority": "gpt-5-6-terra-medium-priority",
+  "gpt-5.6-terra-none": "gpt-5-6-terra-none",
+  "gpt-5.6-terra-none-priority": "gpt-5-6-terra-none-priority",
+  "gpt-5.6-terra-xhigh": "gpt-5-6-terra-xhigh",
+  "gpt-5.6-terra-xhigh-priority": "gpt-5-6-terra-xhigh-priority",
+  // ── SWE ───────────────────────────────────────────────────────────────
+  "swe-1.5": "swe-1p5", // legacy alias (not in live catalog)
+  "swe-1.5-fast": "swe-1p5", // legacy alias (not in live catalog)
+  "swe-1.6": "swe-1-6",
+  "swe-1.6-fast": "swe-1-6-fast",
+  "swe-1.7": "swe-1-7",
+  "swe-1.7-lightning": "swe-1-7-lightning",
+  "swe-1.7-medium": "swe-1-7-medium",
 };
 
 function resolveWsModelId(model: string): string {
@@ -273,6 +341,22 @@ function buildMetadata(apiKey: string, userJwt?: string): Uint8Array {
 
 function buildGetUserJwtRequest(apiKey: string): Uint8Array<ArrayBuffer> {
   return encodeMessage(1, buildMetadata(apiKey));
+}
+
+/** Auth probe endpoint used by the dashboard connection test (see buildWindsurfProbeBody). */
+export const WINDSURF_PROBE_URL = `${DEVIN_API_URL}${AUTH_PATH}`;
+
+/**
+ * Connection-test probe body for the dashboard: Devin authenticates inside the request
+ * PAYLOAD (the key is a protobuf field, not an Authorization header), so the test
+ * harness cannot use a static body. Exposed as a single entry point rather than the
+ * individual protobuf helpers to keep the wire encoding owned by this module.
+ *
+ * A valid key returns 200; a revoked or malformed one returns 401 `invalid api key`
+ * — a real auth signal that token-expiry checks alone cannot produce.
+ */
+export function buildWindsurfProbeBody(apiKey: string): Uint8Array<ArrayBuffer> {
+  return buildGetUserJwtRequest(normalizeDevinSessionToken(apiKey));
 }
 
 function contentAndImages(content: unknown): { text: string; images: ImageData[] } {

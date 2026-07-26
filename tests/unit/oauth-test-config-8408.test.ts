@@ -15,7 +15,6 @@ const GRANDFATHERED_WITHOUT_TEST_CONFIG = new Set([
   "zed",
   "zed-hosted",
   "trae",
-  "windsurf",
   "xai-oauth",
 ]);
 
