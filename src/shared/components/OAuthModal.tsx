@@ -38,6 +38,14 @@ const PKCE_CALLBACK_SERVER_PROVIDERS = new Set([
   "windsurf",
 ]);
 
+/**
+ * Subset of PKCE_CALLBACK_SERVER_PROVIDERS whose fixed loopback redirect still lands on
+ * the USER's machine, where they can copy it out of the address bar. The #8046 LAN-IP
+ * warning is a dead end for these: the paste-the-callback-URL step below completes the
+ * login fine, so they fall through to it instead of erroring out.
+ */
+const PKCE_PASTE_RECOVERABLE_PROVIDERS = new Set(["windsurf"]);
+
 // grok-cli is wired into BOTH the device-code panel (its default, #7358) and
 // the browser PKCE + import-token paths above/below (#7013) — the user picks
 // via the "Device Code" / "Browser Login" / "JWT Token" tabs rendered further
@@ -513,12 +521,16 @@ export default function OAuthModal({
               setPolling(false);
               forceManual = true;
             }
+            // LAN IP: fixed loopback redirect can't reach this server. Providers whose
+            // callback the user can copy by hand recover via the paste step below.
           } else if (isLocalhost) {
-            setError(buildPkceLoopbackMismatchWarning(provider));
-            setStep("error");
-            return;
+            if (!PKCE_PASTE_RECOVERABLE_PROVIDERS.has(provider)) {
+              setError(buildPkceLoopbackMismatchWarning(provider));
+              setStep("error");
+              return;
+            }
           }
-          // Remote (non-LAN): fall through to standard auth code flow below
+          // Remote (non-LAN), or LAN with a pasteable callback: fall through below.
         }
 
         // Authorization code flow
