@@ -756,8 +756,11 @@ test("windsurf is wired into OAUTH_TEST_CONFIG with a dynamic body", () => {
   assert.equal(typeof cfg.getBody, "function", "body must be built from the live connection");
   assert.equal(cfg.checkExpiry, undefined, "a real probe must not short-circuit on expiry alone");
 
-  const encoded = cfg.getBody?.({ accessToken: "tok-from-connection" });
-  assert.ok(encoded, "getBody must return an encoded payload");
+  // Narrow explicitly rather than optional-chaining: a missing getBody must fail here,
+  // not downstream inside Buffer.from().
+  const { getBody } = cfg;
+  assert.ok(getBody, "windsurf must build its probe body from the connection");
+  const encoded = getBody({ accessToken: "tok-from-connection" });
   assert.match(
     Buffer.from(encoded).toString("utf8"),
     /tok-from-connection/,

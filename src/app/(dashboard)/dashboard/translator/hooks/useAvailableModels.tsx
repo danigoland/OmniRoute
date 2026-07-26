@@ -31,14 +31,23 @@ const FORMAT_MODEL_PREFIXES = {
  * NAMESPACE used in the catalog: built-in providers use their id (e.g. "openai"), while
  * compatible providers use the node's custom PREFIX (e.g. "myprefix"), NOT the node id — see
  * #3505. Pure + exported for testing.
+ *
+ * `aliasKey` covers providers whose catalog namespace is their registry alias rather than
+ * their id (windsurf -> "ws"). /v1/models emits BOTH namespaces under the default
+ * MODELS_CATALOG_PREFIX_MODE="dual", but "alias" mode drops the id-prefixed rows entirely —
+ * filtering on the id alone then yields an empty model picker.
  */
-export function filterModelsByProvider(allModels: string[], provider?: string): string[] {
-  return provider
-    ? allModels.filter((m) => m.startsWith(`${provider}/`) || m === provider)
-    : allModels;
+export function filterModelsByProvider(
+  allModels: string[],
+  provider?: string,
+  aliasKey?: string
+): string[] {
+  if (!provider) return allModels;
+  const keys = aliasKey && aliasKey !== provider ? [provider, aliasKey] : [provider];
+  return allModels.filter((m) => keys.some((k) => m.startsWith(`${k}/`) || m === k));
 }
 
-export function useAvailableModels(provider?: string) {
+export function useAvailableModels(provider?: string, aliasKey?: string) {
   const [model, setModel] = useState("");
   const [allModels, setAllModels] = useState<string[]>([]);
   // #6241: keep the per-model reasoning capability flags (supportsThinking / effort_tiers) the
@@ -75,8 +84,8 @@ export function useAvailableModels(provider?: string) {
   }, []);
 
   const availableModels = useMemo(
-    () => filterModelsByProvider(allModels, provider),
-    [allModels, provider]
+    () => filterModelsByProvider(allModels, provider, aliasKey),
+    [allModels, provider, aliasKey]
   );
 
   /**
