@@ -12,6 +12,7 @@
  */
 
 import { WINDSURF_CONFIG } from "../constants/oauth";
+import { OAuthExchangeError } from "../errors";
 
 /** Long-lived fallback when a returned token carries no parseable `exp` claim. */
 const FALLBACK_EXPIRES_IN = 365 * 24 * 60 * 60;
@@ -63,7 +64,14 @@ export async function exchangeWindsurfToken(
 
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 200);
-    throw new Error(`Devin token exchange failed (${response.status}): ${detail}`.trim());
+    const rejected = response.status === 400 || response.status === 401 || response.status === 403;
+    throw new OAuthExchangeError(
+      `Devin token exchange failed (${response.status}): ${detail}`.trim(),
+      rejected
+        ? "Devin rejected this authorization code — it has expired or was already used. Start the login again and paste the new callback URL."
+        : `Devin's token endpoint is unavailable (HTTP ${response.status}). Try again in a moment.`,
+      rejected ? 400 : 502
+    );
   }
 
   const data: unknown = await response.json();

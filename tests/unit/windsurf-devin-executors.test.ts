@@ -646,6 +646,57 @@ test("WindsurfExecutor returns an SSE error when Devin auth fails", async () => 
   }
 });
 
+test("WindsurfExecutor never forwards the raw Devin auth error body to the client", async () => {
+  const { baseUrl, server } = await startDevinTestServer(async (path) => {
+    if (path === "/exa.auth_pb.AuthService/GetUserJwt") {
+      return { status: 401, body: new TextEncoder().encode("leak: token=abc123") };
+    }
+    return null;
+  });
+  try {
+    const result = await new WindsurfExecutor().execute({
+      model: "claude-sonnet-4.6",
+      stream: true,
+      credentials: { accessToken: "sk-ws-test", providerSpecificData: { baseUrl } },
+      body: { messages: [{ role: "user", content: "Hello" }] },
+    });
+    const sse = await result.response.text();
+    const chunk = JSON.parse(sse.split("\n\n")[0].slice("data: ".length));
+    assert.match(chunk.error.message, /Devin auth error 401/, "status detail is still useful");
+    assert.doesNotMatch(
+      chunk.error.message,
+      /token=abc123/,
+      "must not leak the raw upstream response body"
+    );
+  } finally {
+    await closeServerLocal(server);
+  }
+});
+
+test("WindsurfExecutor replaces an unrecognized thrown error with a fixed generic message", async () => {
+  const originalFetch = globalThis.fetch;
+  // Simulate a bug/network failure whose message happens to embed sensitive text —
+  // this must NEVER reach the client verbatim (Rule #12), unlike our own
+  // hand-authored DevinKnownError messages (covered by the auth-401 test above).
+  globalThis.fetch = (async () => {
+    throw new Error("leak: token=abc123");
+  }) as typeof globalThis.fetch;
+  try {
+    const result = await new WindsurfExecutor().execute({
+      model: "claude-sonnet-4.6",
+      stream: true,
+      credentials: { accessToken: "sk-ws-test" },
+      body: { messages: [{ role: "user", content: "Hello" }] },
+    });
+    const sse = await result.response.text();
+    const chunk = JSON.parse(sse.split("\n\n")[0].slice("data: ".length));
+    assert.doesNotMatch(chunk.error.message, /token=abc123/, "must not forward the raw exception");
+    assert.match(chunk.error.message, /check server logs/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("WindsurfExecutor rejects a tool without function.name before authentication", async () => {
   const result = await new WindsurfExecutor().execute({
     model: "claude-sonnet-4.6",

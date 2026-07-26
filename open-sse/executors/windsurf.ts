@@ -18,6 +18,7 @@ import { PROVIDERS } from "../config/constants.ts";
 import { randomUUID } from "node:crypto";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { windsurfProvider } from "../config/providers/registry/windsurf/index.ts";
+import { sanitizeErrorMessage } from "../utils/error.ts";
 
 const DEVIN_API_URL = "https://server.codeium.com";
 const CHAT_PATH = "/exa.api_server_pb.ApiServerService/GetChatMessage";
@@ -68,6 +69,15 @@ type DecodedChatResponse = {
 };
 
 class InvalidRequestError extends Error {}
+
+/**
+ * Marks a message we authored ourselves from hand-written text and/or locally
+ * computed numbers (HTTP status codes, byte offsets/lengths) — NEVER upstream
+ * response bodies or protocol error text. Only these (and InvalidRequestError)
+ * may reach a client; every other caught error is logged server-side and
+ * replaced with a fixed generic message (Rule #12 — no raw upstream forwarding).
+ */
+class DevinKnownError extends Error {}
 
 // ─── Model alias normalizer ──────────────────────────────────────────────────
 //
@@ -568,7 +578,7 @@ function readVarint(bytes: Uint8Array, offset: number): [number, number] {
     if ((next & 0x80) === 0) return [value >>> 0, offset];
     shift += 7;
   }
-  throw new Error("Invalid protobuf varint");
+  throw new DevinKnownError("Invalid protobuf varint");
 }
 
 function decodeFields(bytes: Uint8Array): Map<number, ProtoField[]> {
@@ -583,22 +593,22 @@ function decodeFields(bytes: Uint8Array): Map<number, ProtoField[]> {
     if (wireType === 0) {
       [value, offset] = readVarint(bytes, offset);
     } else if (wireType === 1) {
-      if (offset + 8 > bytes.length) throw new Error("Truncated fixed64 protobuf field");
+      if (offset + 8 > bytes.length) throw new DevinKnownError("Truncated fixed64 protobuf field");
       value = bytes.slice(offset, offset + 8);
       offset += 8;
     } else if (wireType === 2) {
       const [length, lengthEnd] = readVarint(bytes, offset);
       offset = lengthEnd;
       if (offset + length > bytes.length)
-        throw new Error("Truncated length-delimited protobuf field");
+        throw new DevinKnownError("Truncated length-delimited protobuf field");
       value = bytes.slice(offset, offset + length);
       offset += length;
     } else if (wireType === 5) {
-      if (offset + 4 > bytes.length) throw new Error("Truncated fixed32 protobuf field");
+      if (offset + 4 > bytes.length) throw new DevinKnownError("Truncated fixed32 protobuf field");
       value = bytes.slice(offset, offset + 4);
       offset += 4;
     } else {
-      throw new Error(`Unsupported protobuf wire type ${wireType}`);
+      throw new DevinKnownError(`Unsupported protobuf wire type ${wireType}`);
     }
     const values = fields.get(fieldNum) ?? [];
     values.push({ wireType, value });
@@ -663,7 +673,7 @@ function decodeChatResponse(payload: Uint8Array): DecodedChatResponse {
   };
 }
 
-function readConnectTrailerError(text: string): string | null {
+function readConnectTrailerError(text: string): { code: string; detail: string } | null {
   if (!text) return null;
   try {
     const parsed: unknown = JSON.parse(text);
@@ -672,7 +682,8 @@ function readConnectTrailerError(text: string): string | null {
     if (!error || typeof error !== "object") return null;
     const code = "code" in error && typeof error.code === "string" ? error.code : "";
     const message = "message" in error && typeof error.message === "string" ? error.message : "";
-    return code || message ? `Devin stream error${code ? ` ${code}` : ""}: ${message}` : null;
+    if (!code && !message) return null;
+    return { code, detail: `Devin stream error${code ? ` ${code}` : ""}: ${message}` };
   } catch {
     return null;
   }
@@ -695,12 +706,16 @@ async function fetchDevinAuthMetadata(
   });
   const payload = new Uint8Array(await response.arrayBuffer());
   if (!response.ok) {
-    throw new Error(
-      `Devin auth error ${response.status} ${response.statusText}: ${TEXT_DEC.decode(payload)}`
+    // Log the full upstream body server-side only — it may echo request contents.
+    // The client-facing throw carries just the status (Rule #12).
+    console.error(
+      `[WindsurfExecutor] Devin auth error ${response.status} ${response.statusText}: ${TEXT_DEC.decode(payload)}`
     );
+    throw new DevinKnownError(`Devin auth error ${response.status}`);
   }
   const decoded = decodeAuthResponse(payload);
-  if (!decoded.userJwt) throw new Error("Devin auth error: GetUserJwt returned an empty user JWT");
+  if (!decoded.userJwt)
+    throw new DevinKnownError("Devin auth error: GetUserJwt returned an empty user JWT");
   const customBaseUrl = decoded.customApiServerUrl.trim().replace(/\/+$/, "");
   return { userJwt: decoded.userJwt, ...(customBaseUrl ? { baseUrl: customBaseUrl } : {}) };
 }
@@ -760,7 +775,7 @@ export class WindsurfExecutor extends BaseExecutor {
     try {
       const tools = buildChatToolDefinitions(requestBody.tools);
       const apiKey = normalizeDevinSessionToken(credentials.apiKey || credentials.accessToken);
-      if (!apiKey) throw new Error("Devin auth error: missing Windsurf session token");
+      if (!apiKey) throw new DevinKnownError("Devin auth error: missing Windsurf session token");
       const resolvedModel = resolveWsModelId(model);
       const baseUrl = resolveBaseUrl(credentials);
       const auth = await fetchDevinAuthMetadata(apiKey, baseUrl, signal);
@@ -785,9 +800,12 @@ export class WindsurfExecutor extends BaseExecutor {
       });
       if (!upstream.ok) {
         const text = await upstream.text();
-        throw new Error(`Devin API error ${upstream.status} ${upstream.statusText}: ${text}`);
+        console.error(
+          `[WindsurfExecutor] Devin API error ${upstream.status} ${upstream.statusText}: ${text}`
+        );
+        throw new DevinKnownError(`Devin API error ${upstream.status}`);
       }
-      if (!upstream.body) throw new Error("Devin API error: response body is empty");
+      if (!upstream.body) throw new DevinKnownError("Devin API error: response body is empty");
 
       return {
         response: this.transformToSSE(upstream, model, stream),
@@ -799,7 +817,12 @@ export class WindsurfExecutor extends BaseExecutor {
       if (error instanceof InvalidRequestError) {
         return {
           response: new Response(
-            JSON.stringify({ error: { message: error.message, type: "invalid_request_error" } }),
+            JSON.stringify({
+              error: {
+                message: sanitizeErrorMessage(error.message),
+                type: "invalid_request_error",
+              },
+            }),
             { status: 400, headers: { "Content-Type": "application/json" } }
           ),
           url,
@@ -807,8 +830,21 @@ export class WindsurfExecutor extends BaseExecutor {
           transformedBody: requestPayload,
         };
       }
+      if (error instanceof DevinKnownError) {
+        return {
+          response: errorSseResponse(sanitizeErrorMessage(error.message)),
+          url,
+          headers,
+          transformedBody: requestPayload,
+        };
+      }
+      // Unrecognized exception — never forward its message (it may embed request/
+      // upstream data we did not vet). Log the real error server-side only.
+      console.error("[WindsurfExecutor] execute failed:", error);
       return {
-        response: errorSseResponse(error instanceof Error ? error.message : String(error)),
+        response: errorSseResponse(
+          sanitizeErrorMessage("Devin request failed. Check server logs for details.")
+        ),
         url,
         headers,
         transformedBody: requestPayload,
@@ -871,7 +907,7 @@ export class WindsurfExecutor extends BaseExecutor {
                 const flag = pending[offset];
                 const length = frameView.getUint32(1, false);
                 if (length > MAX_CONNECT_FRAME_PAYLOAD) {
-                  throw new Error(
+                  throw new DevinKnownError(
                     `Devin Connect frame length ${length} exceeds ${MAX_CONNECT_FRAME_PAYLOAD}-byte cap`
                   );
                 }
@@ -881,7 +917,13 @@ export class WindsurfExecutor extends BaseExecutor {
                 const raw = flag & 0x01 ? gunzipSync(payload) : payload;
                 if (flag & 0x02) {
                   const trailerError = readConnectTrailerError(TEXT_DEC.decode(raw).trim());
-                  if (trailerError) throw new Error(trailerError);
+                  if (trailerError) {
+                    console.error(`[WindsurfExecutor] ${trailerError.detail}`);
+                    // trailerError.code/detail come from Devin's response — never forward
+                    // them verbatim to the client (Rule #12); the fully static message
+                    // below is the only client-facing text for this failure.
+                    throw new DevinKnownError("Devin stream error");
+                  }
                   continue;
                 }
 
@@ -941,7 +983,7 @@ export class WindsurfExecutor extends BaseExecutor {
           } finally {
             reader.releaseLock();
           }
-          if (pending.length) throw new Error("Truncated Devin Connect frame");
+          if (pending.length) throw new DevinKnownError("Truncated Devin Connect frame");
 
           const finishPayload: Record<string, unknown> = {
             id: responseId,
@@ -970,12 +1012,23 @@ export class WindsurfExecutor extends BaseExecutor {
           emit(finishPayload);
           controller.enqueue(TEXT_ENC.encode("data: [DONE]\n\n"));
         } catch (error) {
-          emit({
-            error: {
-              message: error instanceof Error ? error.message : String(error),
-              type: "windsurf_error",
-            },
-          });
+          if (error instanceof DevinKnownError) {
+            emit({
+              error: { message: sanitizeErrorMessage(error.message), type: "windsurf_error" },
+            });
+          } else {
+            // Unrecognized exception — never forward its message (Rule #12); log
+            // the real error server-side only.
+            console.error("[WindsurfExecutor] stream failed:", error);
+            emit({
+              error: {
+                message: sanitizeErrorMessage(
+                  "Devin stream failed. Check server logs for details."
+                ),
+                type: "windsurf_error",
+              },
+            });
+          }
           controller.enqueue(TEXT_ENC.encode("data: [DONE]\n\n"));
         } finally {
           controller.close();

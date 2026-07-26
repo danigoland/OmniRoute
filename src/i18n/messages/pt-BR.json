@@ -9690,6 +9690,7 @@
     "deviceCodeWaiting": "Aguardando autorização...",
     "googleOAuthWarning": "Acesso remoto + Google OAuth: as credenciais padrão aceitam apenas redirecionamentos para <code>localhost</code>. Após a autorização, seu navegador tentará abrir <code>localhost</code> — copie o URL completo e cole-o abaixo. Para uso totalmente remoto sem esta etapa manual, <a>configure suas próprias credenciais OAuth</a>.",
     "remoteAccessInfo": "Acesso remoto: Como você está acessando o OmniRoute remotamente, após a autorização você verá uma página de erro (localhost não encontrado). Isso é normal – basta copiar o URL completo da barra de endereço do seu navegador e colá-lo abaixo.",
+    "windsurfLoopbackNotice": "O Devin sempre redireciona para <code>{address}</code> no computador que está executando este navegador — não para o servidor do OmniRoute. Nada escuta nessa porta, então a página de erro que aparece é o resultado esperado. Copie o URL completo dela e cole abaixo.",
     "step1OpenUrl": "Etapa 1: abra este URL em seu navegador",
     "copy": "Copiar",
     "step2PasteCallback": "Etapa 2: cole o URL de retorno de chamada ou o código de autorização aqui",

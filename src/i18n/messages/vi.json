@@ -9690,6 +9690,7 @@
     "deviceCodeWaiting": "Đang chờ ủy quyền...",
     "googleOAuthWarning": "Truy cập từ xa + Google OAuth: thông tin xác thực đi kèm chỉ chấp nhận các chuyển hướng loopback như <code>127.0.0.1</code>. Trình duyệt phê duyệt Google phải có thể kết nối với OmniRoute trên cổng cục bộ đó, thường bằng cách mở OmniRoute cục bộ hoặc sử dụng đường hầm SSH/chuyển tiếp cục bộ. Khuyến nghị cho các cài đặt từ xa: trên máy tính của chính bạn, hãy chạy <code>npx omniroute login antigravity</code> và dán khối thông tin xác thực mà lệnh in ra vào trường bên dưới. Để sử dụng hoàn toàn từ xa mà không có chuyển hướng cục bộ này, hãy <a>định cấu hình thông tin xác thực OAuth của riêng bạn</a>.",
     "remoteAccessInfo": "Truy cập từ xa: Vì bạn đang truy cập OmniRoute từ xa nên sau khi ủy quyền, bạn sẽ thấy một trang lỗi (không tìm thấy localhost). Điều này là bình thường — chỉ cần sao chép toàn bộ URL từ thanh địa chỉ trình duyệt của bạn và dán vào bên dưới.",
+    "windsurfLoopbackNotice": "Devin luôn chuyển hướng đến <code>{address}</code> trên máy tính đang chạy trình duyệt này — không phải đến máy chủ OmniRoute. Không có gì lắng nghe trên cổng đó, vì vậy trang lỗi bạn thấy là kết quả mong đợi. Hãy sao chép toàn bộ URL của nó và dán vào bên dưới.",
     "step1OpenUrl": "Bước 1: Mở URL này trong trình duyệt của bạn",
     "copy": "Sao chép",
     "step2PasteCallback": "Bước 2: Dán URL chuyển hướng hoặc mã ủy quyền vào đây",

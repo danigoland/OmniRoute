@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { WINDSURF_CONFIG } from "@/lib/oauth/constants/oauth";
 
 import Button from "./Button";
 import Input from "./Input";
@@ -85,9 +86,11 @@ export function OAuthDeviceCodePanel({
 }
 
 function OAuthRemoteAccessNotices({
+  provider,
   isGoogleOAuth,
   isTrueLocalhost,
 }: {
+  provider: string;
   isGoogleOAuth: boolean;
   isTrueLocalhost: boolean;
 }) {
@@ -120,6 +123,15 @@ function OAuthRemoteAccessNotices({
         <span className="material-symbols-outlined text-sm align-middle mr-1">info</span>
         {t("remoteAccessInfo")}
       </div>
+      {provider === "windsurf" && (
+        <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-200">
+          <span className="material-symbols-outlined text-sm align-middle mr-1">info</span>
+          {t.rich("windsurfLoopbackNotice", {
+            address: `${WINDSURF_CONFIG.callbackHost}:${WINDSURF_CONFIG.callbackPort}`,
+            code: (chunks) => <code className="font-mono">{chunks}</code>,
+          })}
+        </div>
+      )}
     </>
   );
 }
@@ -155,7 +167,11 @@ export function OAuthManualInputPanel({
   return (
     <>
       <div className="space-y-4">
-        <OAuthRemoteAccessNotices isGoogleOAuth={isGoogleOAuth} isTrueLocalhost={isTrueLocalhost} />
+        <OAuthRemoteAccessNotices
+          provider={provider}
+          isGoogleOAuth={isGoogleOAuth}
+          isTrueLocalhost={isTrueLocalhost}
+        />
         <div>
           <p className="text-sm font-medium mb-2">{t("step1OpenUrl")}</p>
           <div className="flex gap-2">
