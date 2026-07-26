@@ -21,6 +21,12 @@ export { formatDeviceCodeRemaining } from "./OAuthModalPanels";
 
 const GOOGLE_OAUTH_PROVIDERS = new Set(["antigravity", "agy"]);
 
+// Devin's CLI authorization flow accepts exactly one redirect target; these must
+// stay in sync with WINDSURF_CONFIG in src/lib/oauth/constants/oauth.ts.
+const WINDSURF_CALLBACK_HOST = "127.0.0.1";
+const WINDSURF_CALLBACK_PORT = 59653;
+const WINDSURF_CALLBACK_PATH = "/callback";
+
 /** Providers that use a local callback server on a fixed/random port (PKCE browser flow). */
 const PKCE_CALLBACK_SERVER_PROVIDERS = new Set([
   "codex",
@@ -532,11 +538,13 @@ export default function OAuthModal({
           // Fixed native-app loopback callback, distinct ports so both can run concurrently (#7013).
           const grokBuildPort = provider === "xai-oauth" ? 56121 : 56122;
           redirectUri = `http://127.0.0.1:${grokBuildPort}/callback`;
-        } else if (provider === "windsurf" || provider === "devin-cli") {
-          // Remote fallback: use OmniRoute's port with the /auth/callback path Windsurf expects.
-          // On true localhost this code is never reached (callback server handles the flow above).
-          const port = window.location.port || "20128";
-          redirectUri = `http://localhost:${port}/auth/callback`;
+        } else if (provider === "windsurf") {
+          // Devin pins its CLI redirect to loopback port 59653; no other host or
+          // port is accepted. On a remote deployment the callback therefore lands
+          // on the USER's machine, not the server, so the modal falls through to
+          // the paste-the-callback-URL step below and the browser never needs to
+          // reach it. On true localhost the callback server above handles it.
+          redirectUri = `http://${WINDSURF_CALLBACK_HOST}:${WINDSURF_CALLBACK_PORT}${WINDSURF_CALLBACK_PATH}`;
         } else if (GOOGLE_OAUTH_PROVIDERS.has(provider)) {
           // Google OAuth built-in credentials only accept loopback redirect URIs.
           // Even in remote deployments we use loopback — user copies the callback URL manually.

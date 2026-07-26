@@ -46,3 +46,26 @@ test("loopback PKCE callback server covers grok-cli, codex/xai-oauth and windsur
     assert.ok(set.includes(provider), `${provider} must use the local PKCE callback server`);
   }
 });
+
+// Remote deployments: Devin only accepts the fixed loopback redirect
+// 127.0.0.1:59653/callback, so the modal's non-localhost branch must send that
+// exact URI. It previously built `localhost:<omniroute-port>/auth/callback`,
+// a leftover from the retired Windsurf PKCE flow, which Devin rejects.
+test("windsurf remote fallback uses Devin's fixed loopback redirect, not OmniRoute's port", () => {
+  // Strip only full-line comments: a naive /\/\/.*/ also eats the `//` inside
+  // the `http://…` template literal this test is asserting on.
+  const source = modal.replace(/^\s*\/\/[^\n]*$/gm, "");
+  const branch = source.match(/provider === "windsurf"\)\s*\{([\s\S]*?)\}\s*else if/);
+  assert.ok(branch, "expected a windsurf branch in the redirect-URI selection");
+
+  assert.match(branch[1], /WINDSURF_CALLBACK_HOST/);
+  assert.match(branch[1], /WINDSURF_CALLBACK_PORT/);
+  assert.match(branch[1], /WINDSURF_CALLBACK_PATH/);
+  // The retired path must not come back.
+  assert.doesNotMatch(branch[1], /auth\/callback/);
+  assert.doesNotMatch(branch[1], /window\.location\.port/);
+
+  assert.match(modal, /const WINDSURF_CALLBACK_HOST = "127\.0\.0\.1"/);
+  assert.match(modal, /const WINDSURF_CALLBACK_PORT = 59653/);
+  assert.match(modal, /const WINDSURF_CALLBACK_PATH = "\/callback"/);
+});
