@@ -1,64 +1,71 @@
 import { WINDSURF_CONFIG } from "../constants/oauth";
+import {
+  buildWindsurfAuthUrl,
+  exchangeWindsurfToken,
+  isDevinCliTokens,
+  mapDevinSessionToken,
+} from "./windsurf-oauth";
 
 /**
- * Windsurf / Devin CLI OAuth Provider — import-token only (Phase 1 hotfix, 2026-05-29).
+ * Windsurf / Devin CLI OAuth Provider — browser PKCE (restored 2026-07-25).
  *
- * The previous PKCE Authorization Code flow targeting `https://app.devin.ai/editor/signin`
- * stopped working post-rebrand: that endpoint now returns 404. Until Phase 2 ports the
- * Firebase OAuth + RegisterUser flow (see _tasks/superpowers/specs/2026-05-29-windsurf-login-fix-design.md),
- * the only supported login path is import-token:
+ * `WindsurfExecutor` talks to Devin's Cascade API, which authenticates a
+ * `devin-session-token$<jwt>` credential through
+ * `AuthService/GetUserJwt`. Only Devin's own CLI authorization flow issues that
+ * JWT:
  *
- *   1. In the Windsurf / VS Code IDE, the user runs the
- *      "Windsurf: Provide Auth Token" command from the command palette
- *      (or clicks the Jupyter "Get Windsurf Authentication Token" button).
- *      NOTE: opening https://windsurf.com/show-auth-token directly only renders
- *      a "Redirecting" page with no token — the IDE must initiate the flow
- *      (it adds a `?state=<xyz>` param) for the token to be displayed.
- *   2. Copies the displayed Windsurf API key (`sk-ws-...` style)
- *   3. Pastes it into OmniRoute via /api/oauth/windsurf/import-token
+ *   1. OmniRoute opens `https://app.devin.ai/auth/cli/continue` with PKCE S256
+ *      and a loopback `redirect_uri` (127.0.0.1:59653/callback).
+ *   2. The user signs in to Devin; Devin redirects back with `code`.
+ *   3. OmniRoute exchanges it at `https://api.devin.ai/auth/cli/token`.
+ *   4. The returned JWT is stored as `accessToken`.
  *
- * The pasted token is stored as `accessToken` and used directly by `WindsurfExecutor`
- * (open-sse/executors/windsurf.ts) as the `Authorization: Bearer ...` header against
- * the inference server (`server.self-serve.windsurf.com`).
+ * Windsurf IDE tokens (`sk-ws-…`, `ott$…`) are a DIFFERENT identity provider and
+ * are rejected by `GetUserJwt` with "Invalid token" — verified live on
+ * 2026-07-25 against two freshly issued tokens. `import-token` therefore only
+ * accepts a genuine Devin session JWT.
  */
 export const windsurf = {
   config: WINDSURF_CONFIG,
-  flowType: "import_token" as const,
+  flowType: "authorization_code_pkce" as const,
+  // Devin's CLI flow pins the loopback port; the authorization page rejects a
+  // redirect_uri on any other port.
+  fixedPort: WINDSURF_CONFIG.callbackPort,
+  callbackPath: WINDSURF_CONFIG.callbackPath,
+  callbackHost: WINDSURF_CONFIG.callbackHost,
+
+  buildAuthUrl: buildWindsurfAuthUrl,
+  exchangeToken: exchangeWindsurfToken,
 
   /**
-   * Validate a pasted Windsurf API key. Accepts the `sk-ws-...` format issued by
-   * the IDE "Windsurf: Provide Auth Token" command (via windsurf.com/show-auth-token
-   * with the IDE-supplied `?state=...`) and the legacy raw-token format. Empty or
-   * whitespace-only tokens are rejected.
+   * Validate a pasted credential. Devin session tokens are JWTs, so a token
+   * lacking JWT structure is rejected up front rather than failing later at
+   * `GetUserJwt` with an opaque "Invalid token".
    */
   validateImportToken(token: string): { valid: boolean; reason?: string } {
     const trimmed = (token ?? "").trim();
     if (!trimmed) {
       return { valid: false, reason: "Token is empty" };
     }
-    if (trimmed.length < 16) {
-      return { valid: false, reason: "Token is too short" };
+    if (trimmed.startsWith("sk-ws-") || trimmed.startsWith("ott$")) {
+      return {
+        valid: false,
+        reason:
+          "That is a Windsurf IDE token, which Devin rejects. Use Browser Login to sign in at app.devin.ai instead.",
+      };
+    }
+    if (trimmed.split(".").length !== 3) {
+      return {
+        valid: false,
+        reason: "Expected a Devin session JWT (three dot-separated segments)",
+      };
     }
     return { valid: true };
   },
 
-  /**
-   * Map a pasted import token onto the connection record. The token IS the
-   * Windsurf API key; there is no exchange step.
-   *
-   * NOTE: callers in `src/app/api/oauth/[provider]/[action]/route.ts` invoke
-   * this with `{ accessToken: token }` (object), matching the cursor/kiro
-   * signature. The earlier signature was `mapTokens(token: string)`, which
-   * caused the route to spread `{ accessToken: { accessToken: "sk-..." } }`
-   * into the DB layer and crashed the SQLite bind step:
-   *   `SQLite3 can only bind numbers, strings, bigints, buffers, and null`.
-   * Keep the object signature.
-   */
-  mapTokens(tokens: { accessToken: string }) {
-    return {
-      accessToken: tokens.accessToken,
-      refreshToken: null,
-      expiresIn: null as number | null,
-    };
+  mapTokens(tokens: { accessToken: string } | { token: string }) {
+    return isDevinCliTokens(tokens)
+      ? mapDevinSessionToken(tokens.token, "browser")
+      : mapDevinSessionToken(tokens.accessToken, "import");
   },
 };

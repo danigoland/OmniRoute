@@ -416,55 +416,36 @@ export const TRAE_CONFIG = {
 
 // Windsurf / Devin CLI Configuration
 //
-// 2026-05-29 (Phase 1 hotfix):
-//   The browser PKCE flow targeting https://app.devin.ai/editor/signin returned
-//   404 post-rebrand. PKCE-only fields (`authorizeUrl`, `codeChallengeMethod`,
-//   `callbackPort`, `callbackPath`, `apiServerUrl`, `exchangePath`) are kept
-//   below for archival reference but are NO LONGER consumed by any code path —
-//   the provider exports flowType="import_token" only.
+// 2026-07-25: browser login restored via Devin's CLI PKCE flow.
+//   The old `app.devin.ai/editor/signin` endpoint stayed 404 after the rebrand,
+//   but Devin exposes a working CLI authorization flow at
+//   `app.devin.ai/auth/cli/continue`, exchanged at `api.devin.ai/auth/cli/token`.
+//   The resulting JWT is the Devin session token consumed by WindsurfExecutor,
+//   which prefixes it with `devin-session-token$` for AuthService/GetUserJwt.
 //
-//   Phase 2 will reintroduce browser login via Firebase OAuth + RegisterUser
-//   (ported from fendoushaonian/WindSurf-gRPC-API).
-//   Spec: _tasks/superpowers/specs/2026-05-29-windsurf-login-fix-design.md.
-//
-// Active fields:
-//   - inferenceUrl       → used by WindsurfExecutor (open-sse/executors/windsurf.ts)
-//   - showAuthTokenUrl   → reference URL; the real token only renders when the
-//                          IDE "Windsurf: Provide Auth Token" command opens it
-//                          with an IDE-supplied ?state= param (see field below)
-//   - firebaseApiKey     → reserved for Phase 2
-//   - ideName            → sent in extension headers
+//   The previously imported `sk-ws-…`/`ott$…` Windsurf tokens are NOT valid Devin
+//   session tokens — `GetUserJwt` rejects them with "Invalid token" — so browser
+//   login is the supported path.
 export const WINDSURF_CONFIG = {
-  // RETIRED 2026-05-29 — endpoint returns 404 post-rebrand. Phase 2 will replace.
-  authorizeUrl: "https://app.devin.ai/editor/signin",
-  // RETIRED 2026-05-29 — PKCE flow disabled, see header comment.
+  // Devin CLI authorization page. Requires PKCE S256 plus a loopback redirect_uri.
+  authorizeUrl: "https://app.devin.ai/auth/cli/continue",
   codeChallengeMethod: "S256" as const,
-  // RETIRED 2026-05-29 — no callback server is started for windsurf/devin-cli.
-  callbackPort: 0,
-  // RETIRED 2026-05-29 — no callback path is registered for windsurf/devin-cli.
-  callbackPath: "/auth/callback",
-  // RETIRED 2026-05-29 — exchange endpoint no longer reached because PKCE is disabled.
-  apiServerUrl: "https://server.codeium.com",
-  // RETIRED 2026-05-29 — see apiServerUrl.
-  exchangePath: "/exa.seat_management_pb.SeatManagementService/ExchangePKCEAuthorizationCode",
-  // ── Active fields (still consumed by runtime) ─────────────────────────────
-  // Inference server URL (gRPC-web requests go here)
-  inferenceUrl: "https://server.self-serve.windsurf.com",
-  // Primary login path: the user runs the "Windsurf: Provide Auth Token" command
-  // inside the Windsurf/VS Code IDE (or clicks the Jupyter "Get Windsurf
-  // Authentication Token" button), which opens this URL WITH an IDE-supplied
-  // `?state=<xyz>` param and renders the token. Opening this bare URL directly
-  // only shows a "Redirecting" page with no token (#3324).
+  // Devin's CLI callback listens on a fixed loopback port.
+  callbackPort: 59653,
+  callbackPath: "/callback",
+  callbackHost: "127.0.0.1",
+  // Devin CLI token exchange endpoint (JSON, not protobuf).
+  apiServerUrl: "https://api.devin.ai",
+  exchangePath: "/auth/cli/token",
+  // Default Cascade chat host; GetUserJwt may return an account-specific override.
+  inferenceUrl: "https://server.codeium.com",
+  // Legacy paste-token page, retained because import-token remains available for
+  // accounts that already hold a genuine Devin session token.
   showAuthTokenUrl: "https://windsurf.com/show-auth-token",
-  // Token refresh via Firebase Secure Token Service (reserved for Phase 2).
-  // Default is the public Firebase Web client identifier embedded in the
-  // Windsurf/Devin CLI binary; users may override via WINDSURF_FIREBASE_API_KEY.
-  firebaseApiKey: resolvePublicCred("windsurf_fb", "WINDSURF_FIREBASE_API_KEY"),
-  firebaseTokenUrl: "https://securetoken.googleapis.com/v1/token",
-  // IDE identity sent with every gRPC request
+  // IDE identity sent with every Connect request.
   ideName: "windsurf",
-  ideVersion: "3.14.0",
-  extensionVersion: "3.14.0",
+  ideVersion: "3.2.23",
+  extensionVersion: "1.48.2",
 };
 
 // Zed IDE credential import — no standard OAuth flow.

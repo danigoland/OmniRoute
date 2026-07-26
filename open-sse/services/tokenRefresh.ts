@@ -441,8 +441,7 @@ async function _getAccessTokenInternal(provider, credentials, log, proxyConfig: 
       return await refreshWindsurfToken(
         credentials.refreshToken,
         credentials.providerSpecificData,
-        log,
-        proxyConfig
+        log
       );
 
     case "codebuddy-cn":

@@ -5058,8 +5058,8 @@
       }
     },
     "url": {
-      "nonStream": "https://server.self-serve.windsurf.com",
-      "stream": "https://server.self-serve.windsurf.com"
+      "nonStream": "https://server.codeium.com",
+      "stream": "https://server.codeium.com"
     }
   },
   "writer": {

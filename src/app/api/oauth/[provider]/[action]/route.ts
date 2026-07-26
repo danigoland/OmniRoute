@@ -46,7 +46,14 @@ if (!globalThis.__pkceCallbackStates) {
 }
 
 /** Providers that use the PKCE browser callback flow (like Codex). */
-const PKCE_CALLBACK_PROVIDERS = new Set(["codex", "xai-oauth", "grok-cli"]);
+const PKCE_CALLBACK_PROVIDERS = new Set([
+  "codex",
+  "xai-oauth",
+  "grok-cli",
+  // Devin's CLI authorization flow requires a loopback callback on port 59653.
+  "windsurf",
+  "devin-cli",
+]);
 
 /**
  * Providers whose device flow runs in the user's browser (auth.openai.com blocks
@@ -64,16 +71,6 @@ const NO_PKCE_DEVICE_CODE_PROVIDERS = new Set([
   "grok-cli",
   "ghe-copilot",
 ]);
-
-/**
- * Providers whose PKCE flow has been retired but whose import-token path is
- * still active. Returning 410 Gone on `authorize` / `start-callback-server` /
- * `poll-callback` (instead of 400) tells callers the action is permanently
- * gone and points them at /import-token. windsurf/devin-cli were retired
- * 2026-05-29 because app.devin.ai/editor/signin returned 404 post-rebrand.
- * Phase 2 will reintroduce browser login via Firebase OAuth + RegisterUser.
- */
-const RETIRED_PKCE_PROVIDERS = new Set(["windsurf", "devin-cli"]);
 
 /** Providers that allow direct import of a raw API token (no OAuth exchange). */
 const IMPORT_TOKEN_PROVIDERS = new Set(["windsurf", "devin-cli", "grok-cli"]);
@@ -121,31 +118,8 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ provider: string; action: string }> }
 ) {
-  // Phase 1 hotfix (2026-05-29): retired PKCE flows return 410 Gone BEFORE auth.
-  // The action permanently does not exist for these providers regardless of who
-  // is asking — answering 401 first would mislead callers into thinking the
-  // route is gated rather than gone. See spec
-  // _tasks/superpowers/specs/2026-05-29-windsurf-login-fix-design.md.
   try {
     const earlyParams = await params;
-    if (
-      RETIRED_PKCE_PROVIDERS.has(earlyParams.provider) &&
-      (earlyParams.action === "authorize" ||
-        earlyParams.action === "start-callback-server" ||
-        earlyParams.action === "poll-callback")
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            `Browser OAuth disabled for ${earlyParams.provider} — use import-token via ` +
-            `/api/oauth/${earlyParams.provider}/import-token. ` +
-            `In the Windsurf/VS Code IDE, run the "Windsurf: Provide Auth Token" command ` +
-            `(or click the Jupyter "Get Windsurf Authentication Token" button), then copy+paste the shown token. ` +
-            `Opening https://windsurf.com/show-auth-token directly only shows a "Redirecting" page — the IDE must initiate the ?state=... flow.`,
-        },
-        { status: 410 }
-      );
-    }
     // Keychain-import-only providers (e.g. zed) have no OAuth flow — return a
     // clear 400 pointing at the Import button instead of a 500 (#6041).
     const kio = keychainImportOnlyGuard(earlyParams.provider, earlyParams.action);
@@ -382,26 +356,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ provider: string; action: string }> }
 ) {
-  // Phase 1 hotfix (2026-05-29): retired PKCE flows return 410 Gone BEFORE auth.
-  // See GET handler comment.
   try {
     const earlyParams = await params;
-    if (
-      RETIRED_PKCE_PROVIDERS.has(earlyParams.provider) &&
-      earlyParams.action === "poll-callback"
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            `Browser OAuth disabled for ${earlyParams.provider} — use import-token via ` +
-            `/api/oauth/${earlyParams.provider}/import-token. ` +
-            `In the Windsurf/VS Code IDE, run the "Windsurf: Provide Auth Token" command ` +
-            `(or click the Jupyter "Get Windsurf Authentication Token" button), then copy+paste the shown token. ` +
-            `Opening https://windsurf.com/show-auth-token directly only shows a "Redirecting" page — the IDE must initiate the ?state=... flow.`,
-        },
-        { status: 410 }
-      );
-    }
     // Keychain-import-only providers (e.g. zed) have no OAuth flow (#6041).
     const kio = keychainImportOnlyGuard(earlyParams.provider, earlyParams.action);
     if (kio) return kio;
@@ -414,24 +370,6 @@ export async function POST(
 
   try {
     const { provider, action } = await params;
-
-    // Phase 1 hotfix (2026-05-29): retired PKCE flows return 410 Gone before
-    // body parsing. windsurf/devin-cli `poll-callback` is permanently retired
-    // because the upstream PKCE endpoint returns 404. Use /import-token
-    // (handled later in this same handler) for those providers instead.
-    if (RETIRED_PKCE_PROVIDERS.has(provider) && action === "poll-callback") {
-      return NextResponse.json(
-        {
-          error:
-            `Browser OAuth disabled for ${provider} — use import-token via ` +
-            `/api/oauth/${provider}/import-token. ` +
-            `In the Windsurf/VS Code IDE, run the "Windsurf: Provide Auth Token" command ` +
-            `(or click the Jupyter "Get Windsurf Authentication Token" button), then copy+paste the shown token. ` +
-            `Opening https://windsurf.com/show-auth-token directly only shows a "Redirecting" page — the IDE must initiate the ?state=... flow.`,
-        },
-        { status: 410 }
-      );
-    }
 
     let rawBody: any = {};
     try {

@@ -21,8 +21,15 @@ export { formatDeviceCodeRemaining } from "./OAuthModalPanels";
 
 const GOOGLE_OAUTH_PROVIDERS = new Set(["antigravity", "agy"]);
 
-/** Providers that use a local callback server on a random port (PKCE browser flow). */
-const PKCE_CALLBACK_SERVER_PROVIDERS = new Set(["codex", "xai-oauth", "grok-cli"]);
+/** Providers that use a local callback server on a fixed/random port (PKCE browser flow). */
+const PKCE_CALLBACK_SERVER_PROVIDERS = new Set([
+  "codex",
+  "xai-oauth",
+  "grok-cli",
+  // Devin's CLI authorization flow redirects to 127.0.0.1:59653/callback.
+  "windsurf",
+  "devin-cli",
+]);
 
 // grok-cli is wired into BOTH the device-code panel (its default, #7358) and
 // the browser PKCE + import-token paths above/below (#7013) — the user picks
@@ -41,14 +48,6 @@ const DEVICE_CODE_PROVIDERS = new Set([
 ]);
 
 const TOKEN_PASTE_PROVIDERS = new Set(["windsurf", "devin-cli", "grok-cli"]);
-
-/**
- * Phase 1 hotfix (2026-05-29): windsurf & devin-cli only support import-token.
- * Their PKCE flow targeting app.devin.ai/editor/signin returned 404 post-rebrand.
- * Phase 2 will reintroduce browser login via Firebase OAuth + RegisterUser.
- * Spec: _tasks/superpowers/specs/2026-05-29-windsurf-login-fix-design.md.
- */
-const IMPORT_TOKEN_ONLY_PROVIDERS = new Set(["windsurf", "devin-cli"]);
 
 // POST a bare Codex access token to the access-token-only import endpoint
 // (#1290); shared by the bare-JWT and session-JSON paste branches (#6636).
@@ -139,8 +138,9 @@ export default function OAuthModal({
   const [polling, setPolling] = useState(false);
   const [deviceCodeExpiresAt, setDeviceCodeExpiresAt] = useState<number | null>(null);
   const [deviceCodeSecondsRemaining, setDeviceCodeSecondsRemaining] = useState<number | null>(null);
-  // API-key paste mode for direct-token providers.
-  const [showPasteToken, setShowPasteToken] = useState(IMPORT_TOKEN_ONLY_PROVIDERS.has(provider));
+  // API-key paste mode. Every paste-capable provider now also has a browser
+  // flow, so the modal always opens on browser login; the user opts into paste.
+  const [showPasteToken, setShowPasteToken] = useState(false);
   const [pasteToken, setPasteToken] = useState("");
   const [savingToken, setSavingToken] = useState(false);
   // grok-cli only (#7013 rework): device_code is the default method (matches
@@ -149,7 +149,6 @@ export default function OAuthModal({
   const [grokBrowserMode, setGrokBrowserMode] = useState(false);
 
   const supportsTokenPaste = TOKEN_PASTE_PROVIDERS.has(provider);
-  const importTokenOnly = IMPORT_TOKEN_ONLY_PROVIDERS.has(provider);
   const popupRef = useRef(null);
   const deviceFlowRunRef = useRef(0);
   const deviceVerificationUrl =
@@ -648,8 +647,7 @@ export default function OAuthModal({
   useEffect(() => {
     if (!isOpen || !provider || flowStartedRef.current) return;
     flowStartedRef.current = true;
-    const startsInPasteMode = IMPORT_TOKEN_ONLY_PROVIDERS.has(provider);
-    setShowPasteToken(startsInPasteMode);
+    setShowPasteToken(false);
     setGrokBrowserMode(false);
     setAuthData(null);
     setCallbackUrl("");
@@ -657,7 +655,7 @@ export default function OAuthModal({
     setIsDeviceCode(false);
     setDeviceData(null);
     setPolling(false);
-    if (!startsInPasteMode) startOAuthFlow();
+    startOAuthFlow();
   }, [isOpen, provider, startOAuthFlow]);
 
   // Listen for OAuth callback via multiple methods
@@ -928,7 +926,7 @@ export default function OAuthModal({
             third "Device Code" tab since it keeps BOTH the device_code flow
             (#7358, default) and the browser PKCE login (#7013) alongside the
             paste-token import. */}
-        {supportsTokenPaste && !importTokenOnly && step !== "success" && (
+        {supportsTokenPaste && step !== "success" && (
           <div className="flex gap-2 border-b border-border pb-3">
             {provider === "grok-cli" && (
               <button
@@ -957,11 +955,11 @@ export default function OAuthModal({
         {supportsTokenPaste && showPasteToken && step !== "success" && (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-text-muted">
-              {provider === "windsurf"
-                ? 'In the Windsurf / VS Code IDE, run the "Windsurf: Provide Auth Token" command from the command palette (or click the Jupyter "Get Windsurf Authentication Token" button), then copy the shown token and paste it below. Opening windsurf.com/show-auth-token directly only shows a "Redirecting" page — the IDE must initiate the flow.'
+              {provider === "windsurf" || provider === "devin-cli"
+                ? "Paste a Devin session JWT. Windsurf IDE tokens (sk-ws-… / ott$…) are a different credential and are rejected by Devin — use Browser Login instead."
                 : provider === "grok-cli"
                   ? 'Paste the FULL contents of ~/.grok/auth.json (not just the JWT "key" field). A bare JWT has no refresh_token, so the connection dies after expiry (#7610). Prefer the dedicated Import auth.json modal when available.'
-                  : 'Provide your WINDSURF_API_KEY (obtained via `devin auth login`, or via the Windsurf IDE "Windsurf: Provide Auth Token" command).'}
+                  : "Paste your provider API key."}
             </p>
             {provider === "grok-cli" ? (
               <textarea

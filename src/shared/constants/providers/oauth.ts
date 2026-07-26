@@ -231,7 +231,7 @@ export const OAUTH_PROVIDERS = {
     subscriptionRisk: true,
     riskNoticeVariant: "oauth",
     authHint:
-      'In the Windsurf / VS Code IDE, open the command palette and run `Windsurf: Provide Auth Token` (or click the Jupyter "Get Windsurf Authentication Token" button), then copy the shown token and paste it here. Note: opening windsurf.com/show-auth-token directly only renders a "Redirecting" page — the IDE must initiate the flow (it adds a `?state=...` param) for the token to appear.',
+      'Click "Browser Login" to sign in at app.devin.ai. A Windsurf IDE token (sk-ws-… / ott$…) is a different credential and is rejected by Devin, so browser login is required unless you already hold a Devin session JWT.',
     website: "https://windsurf.com",
   },
   "devin-cli": {
@@ -242,7 +242,7 @@ export const OAUTH_PROVIDERS = {
     color: "#6366F1",
     textIcon: "DV",
     authHint:
-      "Requires the Devin CLI binary. Run `devin auth login` to authenticate, or provide your WINDSURF_API_KEY. Install: https://cli.devin.ai",
+      'Click "Browser Login" to sign in at app.devin.ai — the same Devin session token the Devin CLI uses. No CLI binary is required.',
     website: "https://cli.devin.ai",
   },
   "codebuddy-cn": {
