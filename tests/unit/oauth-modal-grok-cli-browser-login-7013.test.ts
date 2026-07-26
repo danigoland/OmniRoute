@@ -8,10 +8,11 @@ import { dirname, resolve } from "node:path";
 // paste-token import. Regression guard for the provider-set membership in
 // OAuthModal.tsx that gates the "Browser Login" tab.
 //
-// 2026-07-25: `IMPORT_TOKEN_ONLY_PROVIDERS` was removed entirely once windsurf /
-// devin-cli regained a browser flow (Devin CLI PKCE) — no provider is
-// paste-only anymore, so the guard now pins that the set is gone and that both
-// providers use the loopback callback server.
+// 2026-07-25: `IMPORT_TOKEN_ONLY_PROVIDERS` was removed once windsurf regained a
+// browser flow (Devin CLI PKCE). No provider is paste-ONLY in the modal anymore,
+// so the guard pins that the set is gone and that windsurf uses the loopback
+// callback server. `devin-cli` stays paste-driven (ACP executor) but is not
+// modal-gated by a dedicated set.
 // Source-level guard (like oauth-device-code-error-transparency.test.ts):
 // OAuthModal is a "use client" component with heavy runtime deps (next-intl,
 // popup/fetch orchestration); pinning the exact provider-set membership by
@@ -39,9 +40,9 @@ test("no provider is import-token-only — the Browser Login tab always renders"
   );
 });
 
-test("loopback PKCE callback server covers grok-cli, codex/xai-oauth and Devin", () => {
+test("loopback PKCE callback server covers grok-cli, codex/xai-oauth and windsurf", () => {
   const set = extractSet("PKCE_CALLBACK_SERVER_PROVIDERS");
-  for (const provider of ["grok-cli", "codex", "xai-oauth", "windsurf", "devin-cli"]) {
+  for (const provider of ["grok-cli", "codex", "xai-oauth", "windsurf"]) {
     assert.ok(set.includes(provider), `${provider} must use the local PKCE callback server`);
   }
 });

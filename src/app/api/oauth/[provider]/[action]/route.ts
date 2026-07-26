@@ -51,8 +51,9 @@ const PKCE_CALLBACK_PROVIDERS = new Set([
   "xai-oauth",
   "grok-cli",
   // Devin's CLI authorization flow requires a loopback callback on port 59653.
+  // Only `windsurf` is listed: `devin-cli` is served by DevinCliExecutor over
+  // ACP and cannot use a Devin session JWT.
   "windsurf",
-  "devin-cli",
 ]);
 
 /**

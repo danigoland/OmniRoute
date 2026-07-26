@@ -126,54 +126,52 @@ describe("DevinCli binary resolution", () => {
 // ─── Devin browser PKCE flow (restored 2026-07-25) ───────────────────────────
 import { generateAuthData, getProvider } from "@/lib/oauth/providers";
 
-for (const providerId of ["windsurf", "devin-cli"]) {
-  test(`${providerId} provider: uses Devin's browser PKCE flow`, () => {
-    const provider = getProvider(providerId);
-    assert.equal(provider.flowType, "authorization_code_pkce");
-    // Devin's authorization page only accepts its own fixed loopback redirect.
-    assert.equal(provider.fixedPort, 59653);
-    assert.equal(provider.callbackPath, "/callback");
-    assert.equal(provider.callbackHost, "127.0.0.1");
-  });
+test("windsurf provider: uses Devin's browser PKCE flow", () => {
+  const provider = getProvider("windsurf");
+  assert.equal(provider.flowType, "authorization_code_pkce");
+  // Devin's authorization page only accepts its own fixed loopback redirect.
+  assert.equal(provider.fixedPort, 59653);
+  assert.equal(provider.callbackPath, "/callback");
+  assert.equal(provider.callbackHost, "127.0.0.1");
+});
 
-  test(`${providerId} provider: authorize URL targets Devin's CLI endpoint with PKCE`, () => {
-    const data = generateAuthData(providerId, "http://127.0.0.1:59653/callback");
-    assert.notEqual(data.supported, false);
-    const url = new URL(data.authUrl);
-    assert.equal(url.origin + url.pathname, "https://app.devin.ai/auth/cli/continue");
-    assert.equal(url.searchParams.get("redirect_uri"), "http://127.0.0.1:59653/callback");
-    assert.equal(url.searchParams.get("code_challenge_method"), "S256");
-    assert.equal(url.searchParams.get("prompt"), "select_account");
-    assert.equal(url.searchParams.get("code_challenge"), data.codeChallenge);
-    assert.equal(url.searchParams.get("state"), data.state);
-    assert.ok(data.codeVerifier, "a PKCE verifier must be issued for the exchange");
-  });
+test("windsurf provider: authorize URL targets Devin's CLI endpoint with PKCE", () => {
+  const data = generateAuthData("windsurf", "http://127.0.0.1:59653/callback");
+  assert.notEqual(data.supported, false);
+  const url = new URL(data.authUrl);
+  assert.equal(url.origin + url.pathname, "https://app.devin.ai/auth/cli/continue");
+  assert.equal(url.searchParams.get("redirect_uri"), "http://127.0.0.1:59653/callback");
+  assert.equal(url.searchParams.get("code_challenge_method"), "S256");
+  assert.equal(url.searchParams.get("prompt"), "select_account");
+  assert.equal(url.searchParams.get("code_challenge"), data.codeChallenge);
+  assert.equal(url.searchParams.get("state"), data.state);
+  assert.ok(data.codeVerifier, "a PKCE verifier must be issued for the exchange");
+});
 
-  test(`${providerId} provider: rejects a Windsurf IDE token as an import credential`, () => {
-    const provider = getProvider(providerId);
-    // Verified live 2026-07-25: Devin's GetUserJwt rejects both formats with
-    // "Invalid token", so they must not be storable as Devin credentials.
-    for (const token of ["sk-ws-abcdef0123456789", "ott$8rz9AP_-KisKyKhfjnxiTEo"]) {
-      const result = provider.validateImportToken(token);
-      assert.equal(result.valid, false);
-      assert.match(result.reason ?? "", /Windsurf IDE token|Browser Login/i);
-    }
-  });
+test("windsurf provider: rejects a Windsurf IDE token as an import credential", () => {
+  const provider = getProvider("windsurf");
+  // Verified live 2026-07-25: Devin's GetUserJwt rejects both formats with
+  // "Invalid token", so they must not be storable as Devin credentials.
+  for (const token of ["sk-ws-abcdef0123456789", "ott$8rz9AP_-KisKyKhfjnxiTEo"]) {
+    const result = provider.validateImportToken(token);
+    assert.equal(result.valid, false);
+    assert.match(result.reason ?? "", /Windsurf IDE token|Browser Login/i);
+  }
+});
 
-  test(`${providerId} provider: accepts a Devin session JWT and derives expiry from exp`, () => {
-    const provider = getProvider(providerId);
-    const exp = Math.floor(Date.now() / 1000) + 3600;
-    const jwt = `header.${Buffer.from(JSON.stringify({ exp })).toString("base64url")}.sig`;
-    assert.equal(provider.validateImportToken(jwt).valid, true);
+test("windsurf provider: accepts a Devin session JWT and derives expiry from exp", () => {
+  const provider = getProvider("windsurf");
+  const exp = Math.floor(Date.now() / 1000) + 3600;
+  const jwt = `header.${Buffer.from(JSON.stringify({ exp })).toString("base64url")}.sig`;
+  assert.equal(provider.validateImportToken(jwt).valid, true);
 
-    const mapped = provider.mapTokens({ accessToken: jwt });
-    assert.equal(mapped.accessToken, jwt);
-    // Devin exposes no refresh endpoint, so the same JWT is the refresh material.
-    assert.equal(mapped.refreshToken, jwt);
-    assert.ok(mapped.expiresIn > 3500 && mapped.expiresIn <= 3600);
-    assert.equal(mapped.providerSpecificData.authMethod, "import");
-  });
-}
+  const mapped = provider.mapTokens({ accessToken: jwt });
+  assert.equal(mapped.accessToken, jwt);
+  // Devin exposes no refresh endpoint, so the same JWT is the refresh material.
+  assert.equal(mapped.refreshToken, jwt);
+  assert.ok(mapped.expiresIn > 3500 && mapped.expiresIn <= 3600);
+  assert.equal(mapped.providerSpecificData.authMethod, "import");
+});
 
 test("windsurf provider: maps a browser-exchanged Devin token as browser auth", () => {
   const mapped = getProvider("windsurf").mapTokens({ token: "opaque-devin-token" });
@@ -181,20 +179,43 @@ test("windsurf provider: maps a browser-exchanged Devin token as browser auth", 
   assert.equal(mapped.providerSpecificData.authMethod, "browser");
 });
 
+// `devin-cli` deliberately does NOT get the browser flow: it is served by
+// DevinCliExecutor, which drives the local CLI binary over ACP and rejects a
+// Devin session JWT with `-32602 Invalid params` (verified live 2026-07-25).
+test("devin-cli provider: stays import-token only (ACP executor cannot use a Devin JWT)", () => {
+  const provider = getProvider("devin-cli");
+  assert.equal(provider.flowType, "import_token");
+  assert.equal(provider.fixedPort, undefined);
+
+  const data = generateAuthData("devin-cli", "http://127.0.0.1:59653/callback");
+  assert.equal(data.supported, false);
+  assert.equal(data.authUrl, undefined);
+});
+
+test("devin-cli provider: accepts a pasted CLI credential", () => {
+  const provider = getProvider("devin-cli");
+  assert.equal(provider.validateImportToken("").valid, false);
+  assert.equal(provider.validateImportToken("short").valid, false);
+  // The CLI's own credential format must remain storable here.
+  assert.equal(provider.validateImportToken("sk-ws-abcdef0123456789").valid, true);
+
+  const mapped = provider.mapTokens({ accessToken: "sk-ws-abcdef0123456789" });
+  assert.equal(mapped.accessToken, "sk-ws-abcdef0123456789");
+  assert.equal(mapped.providerSpecificData.authMethod, "import");
+});
+
 // ─── OAuth route: Devin PKCE actions are live, not retired ───────────────────
 import { GET as oauthGet } from "@/app/api/oauth/[provider]/[action]/route";
 
-for (const providerId of ["windsurf", "devin-cli"]) {
-  test(`OAuth route: GET ${providerId}/authorize is no longer 410 Gone`, async () => {
-    const request = new Request(`http://localhost:20128/api/oauth/${providerId}/authorize`, {
-      method: "GET",
-    });
-    const response = await oauthGet(request, {
-      params: Promise.resolve({ provider: providerId, action: "authorize" }),
-    } as never);
-    assert.notEqual(response.status, 410);
+test("OAuth route: GET windsurf/authorize is no longer 410 Gone", async () => {
+  const request = new Request("http://localhost:20128/api/oauth/windsurf/authorize", {
+    method: "GET",
   });
-}
+  const response = await oauthGet(request, {
+    params: Promise.resolve({ provider: "windsurf", action: "authorize" }),
+  } as never);
+  assert.notEqual(response.status, 410);
+});
 
 test("Devin token exchange posts PKCE JSON and returns the session token", async () => {
   const requests: Array<{ url: string; body: unknown; contentType: string | null }> = [];

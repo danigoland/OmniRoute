@@ -27,8 +27,9 @@ const PKCE_CALLBACK_SERVER_PROVIDERS = new Set([
   "xai-oauth",
   "grok-cli",
   // Devin's CLI authorization flow redirects to 127.0.0.1:59653/callback.
+  // `devin-cli` is excluded: it runs the local CLI binary over ACP, which
+  // cannot consume a browser-minted Devin session JWT.
   "windsurf",
-  "devin-cli",
 ]);
 
 // grok-cli is wired into BOTH the device-code panel (its default, #7358) and
@@ -955,7 +956,7 @@ export default function OAuthModal({
         {supportsTokenPaste && showPasteToken && step !== "success" && (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-text-muted">
-              {provider === "windsurf" || provider === "devin-cli"
+              {provider === "windsurf"
                 ? "Paste a Devin session JWT. Windsurf IDE tokens (sk-ws-… / ott$…) are a different credential and are rejected by Devin — use Browser Login instead."
                 : provider === "grok-cli"
                   ? 'Paste the FULL contents of ~/.grok/auth.json (not just the JWT "key" field). A bare JWT has no refresh_token, so the connection dies after expiry (#7610). Prefer the dedicated Import auth.json modal when available.'
