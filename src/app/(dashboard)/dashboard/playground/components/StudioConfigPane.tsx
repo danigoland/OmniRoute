@@ -12,6 +12,7 @@ import ImprovePromptButton from "./ImprovePromptButton";
 import { useProviderOptions } from "@/app/(dashboard)/dashboard/translator/hooks/useProviderOptions";
 import { useAvailableModels } from "@/app/(dashboard)/dashboard/translator/hooks/useAvailableModels";
 import {
+  AI_PROVIDERS,
   ANTHROPIC_COMPATIBLE_PREFIX,
   CLAUDE_CODE_COMPATIBLE_PREFIX,
   OPENAI_COMPATIBLE_PREFIX,
@@ -91,11 +92,16 @@ export default function StudioConfigPane({ configState, setConfigState }: Studio
     selectedProviderOption?.modelPrefix,
     isCompatibleConnectionId
   );
+  // #8046 follow-up: a built-in provider whose catalog namespace is its registry alias
+  // (windsurf -> "ws") only lists id-prefixed rows under the default catalog prefix mode.
+  // Pass the alias too so MODELS_CATALOG_PREFIX_MODE="alias" doesn't empty the picker.
+  const providerAliasKey =
+    typeof AI_PROVIDERS[provider]?.alias === "string" ? AI_PROVIDERS[provider].alias : undefined;
   const {
     availableModels,
     modelCapabilities,
     loading: loadingModels,
-  } = useAvailableModels(modelFilterKey);
+  } = useAvailableModels(modelFilterKey, providerAliasKey);
 
   // #4086: filter the dropdown by the search query, but always keep the currently selected
   // model in the list even when it doesn't match — otherwise typing a query would silently

@@ -68,3 +68,26 @@ test("buildPkceLoopbackMismatchWarning has a generic fallback for unknown provid
   const msg = buildPkceLoopbackMismatchWarning("some-future-pkce-provider");
   assert.match(msg, /fixed localhost callback URL/);
 });
+
+// Devin pins its redirect to 127.0.0.1:59653 on the USER's machine, so a LAN-IP
+// dashboard can still finish the login by pasting the callback URL. The #8046
+// warning was a dead end for it: the modal errored before reaching that step.
+test("windsurf falls through the LAN-IP guard to the paste flow", () => {
+  const recoverable = extractSet("PKCE_PASTE_RECOVERABLE_PROVIDERS");
+  assert.ok(
+    recoverable.includes("windsurf"),
+    "windsurf must be paste-recoverable so the LAN-IP guard does not dead-end it"
+  );
+
+  // The guard still fires, but only for providers with no manual recovery.
+  assert.match(
+    modal,
+    /else if \(isLocalhost\) \{\s*if \(!PKCE_PASTE_RECOVERABLE_PROVIDERS\.has\(provider\)\) \{/,
+    "the LAN-IP warning must be gated on the provider having no paste recovery"
+  );
+
+  // codex/xai-oauth/grok-cli have no pasteable callback and must keep warning.
+  for (const p of ["codex", "xai-oauth", "grok-cli"]) {
+    assert.ok(!recoverable.includes(p), `${p} has no paste recovery and must keep the warning`);
+  }
+});

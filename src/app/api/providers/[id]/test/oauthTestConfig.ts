@@ -1,3 +1,8 @@
+// eslint-disable-next-line no-restricted-imports -- probe constants owned by windsurf executor; shared via executor re-export until extracted to a config boundary
+import {
+  WINDSURF_PROBE_URL,
+  buildWindsurfProbeBody,
+} from "@omniroute/open-sse/executors/windsurf.ts";
 import { buildGitLabOAuthEndpoints, resolveGitLabOAuthBaseUrl } from "@/lib/oauth/gitlab";
 import { ANTIGRAVITY_RUNTIME_BASE_URLS } from "@omniroute/open-sse/config/antigravityUpstream.ts";
 import { getAntigravityContentHeaders } from "@omniroute/open-sse/services/antigravityHeaders.ts";
@@ -84,6 +89,7 @@ export interface OAuthTestConfigEntry {
   checkExpiry?: boolean;
   refreshable?: boolean;
   getUrl?: (connection: any) => string;
+  getBody?: (connection: any) => string;
   buildProbe?: (
     connection: any,
     accessToken: string
@@ -253,6 +259,32 @@ export const OAUTH_TEST_CONFIG: Record<string, OAuthTestConfigEntry> = {
     // connectivity is exercised by chat requests.
     checkExpiry: true,
     refreshable: false,
+  },
+  windsurf: {
+    // Same gap as grok-cli #7610 / devin-cli: absent from this table, so a working
+    // Devin connection showed a red "Provider test not supported" badge.
+    //
+    // Unlike devin-cli (local binary over ACP, no HTTP surface), the direct Devin
+    // transport has a real, cheap auth probe: AuthService/GetUserJwt — the same call
+    // the executor makes before every chat. A valid session token returns 200; a
+    // revoked one returns 401 `invalid api key`. That is a true auth signal, so this
+    // follows the codex precedent of a live probe rather than `checkExpiry`, which
+    // cannot distinguish a revoked-but-unexpired token from a working one.
+    //
+    // Devin authenticates INSIDE the protobuf payload rather than via a header, so
+    // the body must be built per connection — hence getBody() (see route.ts).
+    url: WINDSURF_PROBE_URL,
+    getBody: (connection: any) => buildWindsurfProbeBody(String(connection?.accessToken ?? "")),
+    method: "POST",
+    // The key travels in the body; send a harmless bearer so the shared header
+    // builder has something to interpolate.
+    authHeader: "Authorization",
+    authPrefix: "Bearer ",
+    extraHeaders: {
+      "Content-Type": "application/proto",
+      "connect-protocol-version": "1",
+      Accept: "*/*",
+    },
   },
   "grok-cli": {
     // #7610: was entirely absent from OAUTH_TEST_CONFIG, so "Test Connection"

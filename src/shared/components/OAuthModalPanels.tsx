@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import type { GoogleLoopbackHint } from "@/lib/oauth/utils/googleLoopbackHint";
 import type { PkceLoopbackMismatchHint } from "@/lib/oauth/utils/pkceLoopbackWarning";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { WINDSURF_CONFIG } from "@/lib/oauth/constants/oauth";
 
 import Button from "./Button";
 import Input from "./Input";
@@ -280,10 +281,12 @@ function OAuthGoogleLoopbackNotice({ hint }: { hint: GoogleLoopbackHint }) {
 }
 
 function OAuthRemoteAccessNotices({
+  provider,
   isGoogleOAuth,
   isTrueLocalhost,
   googleHint,
 }: {
+  provider: string;
   isGoogleOAuth: boolean;
   isTrueLocalhost: boolean;
   googleHint?: GoogleLoopbackHint | null;
@@ -299,10 +302,41 @@ function OAuthRemoteAccessNotices({
   }
 
   return (
-    <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-200">
-      <span className="material-symbols-outlined text-sm align-middle mr-1">info</span>
-      {t("remoteAccessInfo")}
-    </div>
+    <>
+      {isGoogleOAuth && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+          <span className="material-symbols-outlined text-sm align-middle mr-1">warning</span>
+          <strong>
+            {t.rich("googleOAuthWarning", {
+              code: (chunks) => <code className="font-mono">{chunks}</code>,
+              a: (chunks) => (
+                <a
+                  href="https://github.com/diegosouzapw/OmniRoute#oauth-on-a-remote-server"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline"
+                >
+                  {chunks}
+                </a>
+              ),
+            })}
+          </strong>
+        </div>
+      )}
+      <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-200">
+        <span className="material-symbols-outlined text-sm align-middle mr-1">info</span>
+        {t("remoteAccessInfo")}
+      </div>
+      {provider === "windsurf" && (
+        <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-200">
+          <span className="material-symbols-outlined text-sm align-middle mr-1">info</span>
+          {t.rich("windsurfLoopbackNotice", {
+            address: `${WINDSURF_CONFIG.callbackHost}:${WINDSURF_CONFIG.callbackPort}`,
+            code: (chunks) => <code className="font-mono">{chunks}</code>,
+          })}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -340,6 +374,7 @@ export function OAuthManualInputPanel({
     <>
       <div className="space-y-4">
         <OAuthRemoteAccessNotices
+          provider={provider}
           isGoogleOAuth={isGoogleOAuth}
           isTrueLocalhost={isTrueLocalhost}
           googleHint={googleHint}
@@ -367,8 +402,8 @@ export function OAuthManualInputPanel({
           {provider === "zed-hosted" && (
             <p className="text-xs text-amber-500 mb-2">
               After signing in, Zed redirects to a local address like{" "}
-              <code className="font-mono">http://127.0.0.1:&lt;port&gt;/?user_id=...</code> which the
-              browser may show as unreachable — that is expected. Copy the FULL URL from the
+              <code className="font-mono">http://127.0.0.1:&lt;port&gt;/?user_id=...</code> which
+              the browser may show as unreachable — that is expected. Copy the FULL URL from the
               browser address bar (the access token is inside it) and paste it above.
             </p>
           )}

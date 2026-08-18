@@ -39,6 +39,7 @@ import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { isAuthRequired, isAuthenticated } from "@/shared/utils/apiAuth";
 import { sanitizeErrorMessage } from "@omniroute/open-sse/utils/error";
 import { GITLAB_DUO_OAUTH_SETUP_MESSAGE } from "@/shared/constants/gitlabDuoSetupMessage";
+import { isOAuthExchangeError } from "@/lib/oauth/errors";
 import { keychainImportOnlyGuard } from "./keychainImportOnly";
 import { buildRemoteOAuthHint } from "./remoteOAuthHint";
 
@@ -48,7 +49,16 @@ if (!globalThis.__pkceCallbackStates) {
 }
 
 /** Providers that use the PKCE browser callback flow (like Codex). */
-const PKCE_CALLBACK_PROVIDERS = new Set(["codex", "xai-oauth", "grok-cli", "openference"]);
+const PKCE_CALLBACK_PROVIDERS = new Set([
+  "codex",
+  "xai-oauth",
+  "grok-cli",
+  "openference",
+  // Devin's CLI authorization flow requires a loopback callback on port 59653.
+  // Only `windsurf` is listed: `devin-cli` is served by DevinCliExecutor over
+  // ACP and cannot use a Devin session JWT.
+  "windsurf",
+]);
 
 /**
  * Providers whose device flow runs in the user's browser (auth.openai.com blocks
@@ -787,8 +797,14 @@ export async function POST(
             displayName: connection.displayName,
           },
         });
-      } catch (exchangeErr: any) {
+      } catch (exchangeErr: unknown) {
         console.error("OAuth exchange error:", exchangeErr);
+        if (isOAuthExchangeError(exchangeErr)) {
+          return NextResponse.json(
+            { success: false, error: sanitizeErrorMessage(exchangeErr.friendly) },
+            { status: exchangeErr.httpStatus }
+          );
+        }
         return NextResponse.json(
           { success: false, error: "Internal server error" },
           { status: 500 }
@@ -944,6 +960,12 @@ export async function POST(
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
     console.error("OAuth POST error:", error);
+    if (isOAuthExchangeError(error)) {
+      return NextResponse.json(
+        { error: sanitizeErrorMessage(error.friendly) },
+        { status: error.httpStatus }
+      );
+    }
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

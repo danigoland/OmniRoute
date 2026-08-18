@@ -10664,7 +10664,8 @@
     "gitlabDuoSetupTitle": "Thiết lập GitLab Duo OAuth",
     "gitlabDuoSetupMessage": "GitLab Duo OAuth chưa được cấu hình. Hãy đăng ký ứng dụng OAuth tại {applicationsUrl} với redirect URI {redirectUri} và các scope \"{scopes}\", sau đó đặt {clientIdEnv} (và tùy chọn {clientSecretEnv}) rồi khởi động lại.",
     "gitlabDuoSetupDescription": "Sau khi ứng dụng được đăng ký và các biến môi trường được đặt trên phiên bản OmniRoute này, hãy nhấp vào Tiếp tục để bắt đầu đăng nhập OAuth.",
-    "continue": "Tiếp tục"
+    "continue": "Tiếp tục",
+    "windsurfLoopbackNotice": "Devin always redirects to <code>{address}</code> on the computer running this browser — not to the OmniRoute server. Nothing listens on that port, so the error page you land on is the expected result. Copy its full URL and paste it below."
   },
   "cursorAuthModal": {
     "title": "Kết nối Cursor IDE",

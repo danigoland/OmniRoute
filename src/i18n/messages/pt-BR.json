@@ -10648,7 +10648,8 @@
     "gitlabDuoSetupTitle": "Configuração do OAuth Duo do GitLab",
     "gitlabDuoSetupMessage": "O OAuth Duo do GitLab não está configurado. Registre um aplicativo OAuth em {applicationsUrl} com a URI de redirecionamento {redirectUri} e escopos \"{scopes}\", em seguida, defina {clientIdEnv} (e opcionalmente {clientSecretEnv}) e reinicie.",
     "gitlabDuoSetupDescription": "Após o registro do aplicativo e a configuração das variáveis de ambiente nesta instância do OmniRoute, clique em Continuar para iniciar o login OAuth.",
-    "continue": "Continuar"
+    "continue": "Continuar",
+    "windsurfLoopbackNotice": "Devin always redirects to <code>{address}</code> on the computer running this browser — not to the OmniRoute server. Nothing listens on that port, so the error page you land on is the expected result. Copy its full URL and paste it below."
   },
   "cursorAuthModal": {
     "title": "Conecte o Cursor IDE",

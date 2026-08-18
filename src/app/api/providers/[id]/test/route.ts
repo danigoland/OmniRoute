@@ -557,8 +557,15 @@ export async function testOAuthConnection(
     };
     // Port of decolua/9router#347: providers like Codex must send a body so the
     // upstream returns 400 (auth ok) instead of 405/415.
-    if (config.body && !builtProbe) fetchInit.body = config.body;
+    // `getBody` is the body-side twin of `getUrl`: providers that authenticate
+    // inside the payload (Devin/windsurf embeds the key in a protobuf message)
+    // cannot use a static body, since the credential is only known at run time.
+    // `builtProbe` (antigravity) takes precedence when present.
     if (builtProbe?.body) fetchInit.body = builtProbe.body;
+    else {
+      const body = typeof config.getBody === "function" ? config.getBody(connection) : config.body;
+      if (body) fetchInit.body = body;
+    }
     const res = await fetch(url, fetchInit);
 
     // Some providers (Antigravity family) reject a stale access token with 400
@@ -779,7 +786,15 @@ export async function testOAuthConnection(
           signal: AbortSignal.timeout(timeoutMs),
         };
         if (builtProbe?.body) retryInit.body = builtProbe.body;
-        else if (config.body) retryInit.body = config.body;
+        else {
+          // Encode from the REFRESHED credential: `connection` still carries the
+          // stale token that just failed, so a getBody() over it would replay it.
+          const retryRequestBody =
+            typeof config.getBody === "function"
+              ? config.getBody({ ...connection, accessToken: tokens.accessToken })
+              : config.body;
+          if (retryRequestBody) retryInit.body = retryRequestBody;
+        }
         const retryRes = await fetch(url, retryInit);
 
         const retryInconclusiveBody =

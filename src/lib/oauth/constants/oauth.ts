@@ -456,6 +456,40 @@ export const DEVIN_DESKTOP_CONFIG = {
   defaultVersion: "3.6.27",
 };
 
+// Windsurf / Devin CLI Configuration
+//
+// 2026-07-25: browser login restored via Devin's CLI PKCE flow.
+//   The old `app.devin.ai/editor/signin` endpoint stayed 404 after the rebrand,
+//   but Devin exposes a working CLI authorization flow at
+//   `app.devin.ai/auth/cli/continue`, exchanged at `api.devin.ai/auth/cli/token`.
+//   The resulting JWT is the Devin session token consumed by WindsurfExecutor,
+//   which prefixes it with `devin-session-token$` for AuthService/GetUserJwt.
+//
+//   The previously imported `sk-ws-…`/`ott$…` Windsurf tokens are NOT valid Devin
+//   session tokens — `GetUserJwt` rejects them with "Invalid token" — so browser
+//   login is the supported path.
+export const WINDSURF_CONFIG = {
+  // Devin CLI authorization page. Requires PKCE S256 plus a loopback redirect_uri.
+  authorizeUrl: "https://app.devin.ai/auth/cli/continue",
+  codeChallengeMethod: "S256" as const,
+  // Devin's CLI callback listens on a fixed loopback port.
+  callbackPort: 59653,
+  callbackPath: "/callback",
+  callbackHost: "127.0.0.1",
+  // Devin CLI token exchange endpoint (JSON, not protobuf).
+  apiServerUrl: "https://api.devin.ai",
+  exchangePath: "/auth/cli/token",
+  // Default Cascade chat host; GetUserJwt may return an account-specific override.
+  inferenceUrl: "https://server.codeium.com",
+  // Legacy paste-token page, retained because import-token remains available for
+  // accounts that already hold a genuine Devin session token.
+  showAuthTokenUrl: "https://windsurf.com/show-auth-token",
+  // IDE identity sent with every Connect request.
+  ideName: "windsurf",
+  ideVersion: "3.2.23",
+  extensionVersion: "1.48.2",
+};
+
 // Zed IDE credential import — no standard OAuth flow.
 // Credentials are extracted from the OS keychain via POST /api/providers/zed/import.
 // Docker environments fall back to manual token paste via POST /api/providers/zed/manual-import.
@@ -516,6 +550,7 @@ export const PROVIDERS = {
   KILOCODE: "kilocode",
   CLINE: "cline",
   CLINEPASS: "clinepass",
+  WINDSURF: "windsurf",
   DEVIN_DESKTOP: "devin-desktop",
   DEVIN_CLI: "devin-cli",
   TRAE: "trae",
