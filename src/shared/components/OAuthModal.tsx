@@ -33,10 +33,11 @@ export { formatDeviceCodeRemaining } from "./OAuthModalPanels";
 const GOOGLE_OAUTH_PROVIDERS = new Set(["antigravity", "agy"]);
 
 // Devin's CLI authorization flow accepts exactly one redirect target; these must
-// stay in sync with WINDSURF_CONFIG in src/lib/oauth/constants/oauth.ts.
-const WINDSURF_CALLBACK_HOST = "127.0.0.1";
-const WINDSURF_CALLBACK_PORT = 59653;
-const WINDSURF_CALLBACK_PATH = "/callback";
+// stay in sync with WINDSURF_CONFIG (legacy name for Devin Desktop's OAuth
+// client) in src/lib/oauth/constants/oauth.ts.
+const DEVIN_CALLBACK_HOST = "127.0.0.1";
+const DEVIN_CALLBACK_PORT = 59653;
+const DEVIN_CALLBACK_PATH = "/callback";
 
 /** Providers that use a local callback server on a fixed/random port (PKCE browser flow). */
 const PKCE_CALLBACK_SERVER_PROVIDERS = new Set([
@@ -46,7 +47,7 @@ const PKCE_CALLBACK_SERVER_PROVIDERS = new Set([
   // Devin's CLI authorization flow redirects to 127.0.0.1:59653/callback.
   // `devin-cli` is excluded: it runs the local CLI binary over ACP, which
   // cannot consume a browser-minted Devin session JWT.
-  "windsurf",
+  "devin-desktop",
 ]);
 
 /**
@@ -55,15 +56,7 @@ const PKCE_CALLBACK_SERVER_PROVIDERS = new Set([
  * warning is a dead end for these: the paste-the-callback-URL step below completes the
  * login fine, so they fall through to it instead of erroring out.
  */
-const PKCE_PASTE_RECOVERABLE_PROVIDERS = new Set(["windsurf"]);
-
-/**
- * Subset of PKCE_CALLBACK_SERVER_PROVIDERS whose fixed loopback redirect still lands on
- * the USER's machine, where they can copy it out of the address bar. The #8046 LAN-IP
- * warning is a dead end for these: the paste-the-callback-URL step below completes the
- * login fine, so they fall through to it instead of erroring out.
- */
-const PKCE_PASTE_RECOVERABLE_PROVIDERS = new Set(["windsurf"]);
+const PKCE_PASTE_RECOVERABLE_PROVIDERS = new Set(["devin-desktop"]);
 
 // grok-cli is wired into BOTH the device-code panel (its default, #7358) and
 // the browser PKCE + import-token paths above/below (#7013) — the user picks
@@ -81,8 +74,10 @@ const DEVICE_CODE_PROVIDERS = new Set([
   "grok-cli",
 ]);
 
-const TOKEN_PASTE_PROVIDERS = new Set(["windsurf", "devin-desktop", "devin-cli", "grok-cli"]);
-const IMPORT_TOKEN_ONLY_PROVIDERS = new Set(["devin-desktop", "devin-cli"]);
+const TOKEN_PASTE_PROVIDERS = new Set(["devin-desktop", "devin-cli", "grok-cli"]);
+// devin-desktop is absent: it offers BOTH browser PKCE login and API-key paste,
+// so it needs the tab bar that this set suppresses.
+const IMPORT_TOKEN_ONLY_PROVIDERS = new Set(["devin-cli"]);
 
 // POST a bare Codex access token to the access-token-only import endpoint
 // (#1290); shared by the bare-JWT and session-JSON paste branches (#6636).
@@ -309,6 +304,12 @@ export default function OAuthModal({
     setSavingToken(true);
     setError(null);
     try {
+      // The login helper prints a credential blob rather than a bare key; that
+      // has to go to the blob endpoint, not /import-token.
+      if (isCredentialBlob(raw)) {
+        await submitCredentialBlob(provider, raw, reauthConnection, setStep, onSuccess);
+        return;
+      }
       let token: string | Record<string, unknown> = raw;
       if (provider === "grok-cli") {
         const parsed = parseGrokCliPasteToken(raw);
@@ -592,14 +593,14 @@ export default function OAuthModal({
           // Fixed native-app loopback callback, distinct ports so both can run concurrently (#7013).
           const grokBuildPort = provider === "xai-oauth" ? 56121 : 56122;
           redirectUri = `http://127.0.0.1:${grokBuildPort}/callback`;
-        } else if (provider === "windsurf") {
+        } else if (provider === "devin-desktop") {
           // Devin pins its CLI redirect to loopback port 59653; no other host or
           // port is accepted. On a remote deployment the callback therefore lands
           // on the USER's machine, not the server, so the modal falls through to
           // the paste-the-callback-URL step below and the browser never needs to
           // reach it. On true localhost the callback server above handles it.
-          redirectUri = `http://${WINDSURF_CALLBACK_HOST}:${WINDSURF_CALLBACK_PORT}${WINDSURF_CALLBACK_PATH}`;
-        } else if (provider === "devin-desktop" || provider === "devin-cli") {
+          redirectUri = `http://${DEVIN_CALLBACK_HOST}:${DEVIN_CALLBACK_PORT}${DEVIN_CALLBACK_PATH}`;
+        } else if (provider === "devin-cli") {
           // Retained callback-path fallback for the retired browser flow.
           const port = window.location.port || "20128";
           redirectUri = `http://localhost:${port}/auth/callback`;
@@ -1042,13 +1043,11 @@ export default function OAuthModal({
         {supportsTokenPaste && showPasteToken && step !== "success" && (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-text-muted">
-              {provider === "windsurf"
-                ? "Paste a Devin session JWT. Windsurf IDE tokens (sk-ws-… / ott$…) are a different credential and are rejected by Devin — use Browser Login instead."
-                : provider === "devin-desktop"
-                  ? t("devinDesktopPasteDescription")
-                  : provider === "grok-cli"
-                    ? t("grokAuthJsonDescription")
-                    : t("devinPasteDescription")}
+              {provider === "devin-desktop"
+                ? t("devinDesktopPasteDescription")
+                : provider === "grok-cli"
+                  ? t("grokAuthJsonDescription")
+                  : t("devinPasteDescription")}
             </p>
             {provider === "grok-cli" ? (
               <textarea

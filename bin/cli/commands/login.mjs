@@ -1,8 +1,8 @@
 import { createServer } from "node:http";
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 /**
- * `omniroute login antigravity` — local OAuth helper for remote installs.
+ * `omniroute login antigravity` / `devin-desktop` — local OAuth helpers for remote installs.
  *
  * Why this exists: Google's `firstparty/nativeapp` consent for the embedded
  * Antigravity desktop client only releases the authorization code when the
@@ -14,11 +14,12 @@ import { randomUUID } from "node:crypto";
  * This command runs the OAuth on the user's OWN machine — where 127.0.0.1 works —
  * captures the code on a local loopback server, exchanges it for tokens, and
  * prints a single-line credential blob. The user pastes that blob into the remote
- * dashboard (Antigravity → "Paste credentials"), which decodes it, finalizes the
+ * dashboard (the provider's "Paste credentials"), which decodes it, finalizes the
  * onboarding server-side, and persists the connection.
  *
- * It talks ONLY to Google (no OmniRoute server needed locally), so it works even
- * if the remote VPS is firewalled from the user's machine.
+ * The Antigravity path talks ONLY to Google (no OmniRoute server needed locally),
+ * while Devin Desktop talks only to Devin; both work even if the remote VPS is
+ * firewalled from the user's machine.
  *
  * Push mode: when an active remote context exists (`omniroute connect <host>`), the
  * blob is POSTed straight to that install instead of being printed for a manual
@@ -35,6 +36,11 @@ import { randomUUID } from "node:crypto";
  */
 
 const PROVIDER = "antigravity";
+const DEVIN_DESKTOP_PROVIDER = "devin-desktop";
+const DEVIN_DESKTOP_PORT = 59653;
+const DEVIN_DESKTOP_REDIRECT_URI = `http://127.0.0.1:${DEVIN_DESKTOP_PORT}/callback`;
+const DEVIN_DESKTOP_AUTHORIZE_URL = "https://app.devin.ai/auth/cli/continue";
+const DEVIN_DESKTOP_TOKEN_URL = "https://api.devin.ai/auth/cli/token";
 
 /** Open the system browser; no-op if the optional `open` dependency is missing. */
 async function defaultOpenBrowser(url) {
@@ -131,10 +137,16 @@ async function defaultResolveContext(overrideName) {
   return resolveActiveContext(overrideName);
 }
 
+/** Lazy-load the credential blob codec (TS source via tsx). */
+async function loadCredentialBlob() {
+  const { encodeCredentialBlob } = await import("../../../src/lib/oauth/credentialBlob.ts");
+  return { encodeCredentialBlob };
+}
+
 /** Lazy-load the antigravity provider + blob codec (TS source via tsx). */
 async function loadDeps() {
   const { antigravity } = await import("../../../src/lib/oauth/providers/antigravity.ts");
-  const { encodeCredentialBlob } = await import("../../../src/lib/oauth/credentialBlob.ts");
+  const { encodeCredentialBlob } = await loadCredentialBlob();
   return { antigravity, encodeCredentialBlob };
 }
 
@@ -155,6 +167,162 @@ export async function buildAntigravityAuthRequest(port, makeState = randomUUID) 
 export async function exchangeAntigravityCode(code, redirectUri) {
   const { antigravity } = await loadDeps();
   return antigravity.exchangeToken(antigravity.config, code, redirectUri);
+}
+function generateCodeVerifier() {
+  return randomBytes(32).toString("base64url");
+}
+
+function codeChallengeFor(verifier) {
+  return createHash("sha256").update(verifier).digest("base64url");
+}
+
+/** Build Devin Desktop's fixed-loopback PKCE authorization request. */
+export function buildDevinDesktopAuthRequest(
+  makeState = () => randomUUID(),
+  makeVerifier = generateCodeVerifier
+) {
+  const state = makeState();
+  const codeVerifier = makeVerifier();
+  const authUrl = new URL(DEVIN_DESKTOP_AUTHORIZE_URL);
+  authUrl.searchParams.set("redirect_uri", DEVIN_DESKTOP_REDIRECT_URI);
+  authUrl.searchParams.set("state", state);
+  authUrl.searchParams.set("prompt", "select_account");
+  authUrl.searchParams.set("code_challenge", codeChallengeFor(codeVerifier));
+  authUrl.searchParams.set("code_challenge_method", "S256");
+  return {
+    redirectUri: DEVIN_DESKTOP_REDIRECT_URI,
+    state,
+    codeVerifier,
+    authUrl: authUrl.toString(),
+  };
+}
+
+/** Exchange Devin Desktop's authorization code for its session JWT. */
+export async function exchangeDevinDesktopCode(code, _redirectUri, codeVerifier) {
+  if (!codeVerifier) throw new Error("Devin token exchange requires the PKCE code_verifier");
+  const response = await fetch(DEVIN_DESKTOP_TOKEN_URL, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({ code, code_verifier: codeVerifier }),
+  });
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 200);
+    throw new Error(`Devin token exchange failed (${response.status}): ${detail}`.trim());
+  }
+  const data = await response.json();
+  if (!data || typeof data.token !== "string" || !data.token) {
+    throw new Error("Devin token exchange returned an empty token");
+  }
+  return { token: data.token };
+}
+
+function expiresInFromJwt(token) {
+  const payload = token.split(".")[1];
+  if (!payload) return undefined;
+  try {
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return typeof claims.exp === "number" && Number.isFinite(claims.exp)
+      ? Math.max(0, Math.floor(claims.exp - Date.now() / 1000))
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Run Devin Desktop's local PKCE login and emit/push a credential blob. */
+export async function runDevinDesktopLogin(opts = {}, deps = {}) {
+  const startServer = deps.startServer ?? defaultStartServer;
+  const openBrowser = deps.openBrowser ?? defaultOpenBrowser;
+  const exchange = deps.exchange ?? exchangeDevinDesktopCode;
+  const makeState = deps.makeState ?? (() => randomUUID());
+  const makeVerifier = deps.makeVerifier ?? generateCodeVerifier;
+  const print = deps.print ?? ((s) => process.stdout.write(s));
+  const log = deps.log ?? ((s) => process.stderr.write(s));
+  const { encodeCredentialBlob } = await loadCredentialBlob();
+
+  const server = await startServer(DEVIN_DESKTOP_PORT);
+  const { redirectUri, state, codeVerifier, authUrl } = buildDevinDesktopAuthRequest(
+    makeState,
+    makeVerifier
+  );
+
+  log(
+    `\nOpen this URL to authorize Devin Desktop (it will open automatically):\n\n  ${authUrl}\n\n`
+  );
+  if (opts.browser !== false) await openBrowser(authUrl);
+  log("Waiting for Devin to redirect back to the local loopback...\n");
+
+  const timeoutMs = opts.timeout ?? 300000;
+  let timer;
+  let params;
+  try {
+    params = await Promise.race([
+      server.waitForCallback(),
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("Timed out waiting for the OAuth callback")),
+          timeoutMs
+        );
+        if (typeof timer.unref === "function") timer.unref();
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+    await server.close();
+  }
+
+  if (params.error) {
+    throw new Error(`Authorization failed: ${params.error_description || params.error}`);
+  }
+  if (params.state !== state) {
+    throw new Error("State mismatch — aborting (possible CSRF). Please retry the login.");
+  }
+  if (!params.code) throw new Error("No authorization code returned by Devin.");
+
+  const result = await exchange(params.code, redirectUri, codeVerifier);
+  const token = result?.token;
+  if (typeof token !== "string" || !token)
+    throw new Error("Devin token exchange returned an empty token");
+  const expires_in = expiresInFromJwt(token);
+  const blob = encodeCredentialBlob({
+    provider: DEVIN_DESKTOP_PROVIDER,
+    tokens: { access_token: token, ...(expires_in === undefined ? {} : { expires_in }) },
+  });
+
+  const resolveContext = deps.resolveContext ?? defaultResolveContext;
+  const push = deps.push ?? pushCredentialBlob;
+  let context = null;
+  try {
+    context = await resolveContext(opts.context);
+  } catch {}
+  const wantsPush =
+    opts.push === true || (opts.push !== false && isRemoteBaseUrl(context?.baseUrl));
+
+  if (wantsPush) {
+    log(`\nSending the credential to ${context?.baseUrl || "the active context"}...\n`);
+    const pushResult = await push(DEVIN_DESKTOP_PROVIDER, blob, { context });
+    if (pushResult?.ok) {
+      log(
+        `Devin Desktop connected on ${context?.baseUrl || "the remote install"}` +
+          `${pushResult.connectionId ? ` (connection ${pushResult.connectionId})` : ""}.\n` +
+          "Nothing to paste — you can close this terminal.\n"
+      );
+      return blob;
+    }
+    log(
+      `\nCould not deliver the credential automatically: ${pushResult?.error || "unknown error"}\n` +
+        "Falling back to manual paste — the authorization itself is still valid.\n"
+    );
+  }
+
+  print(
+    "\nDevin Desktop authorized. Copy the line below and paste it into your remote\n" +
+      'OmniRoute dashboard: Providers → Devin Desktop → Connect → "Paste credentials".\n' +
+      "(This contains a session token — treat it like a password.)\n\n" +
+      blob +
+      "\n\n"
+  );
+  return blob;
 }
 
 /**
@@ -268,6 +436,20 @@ async function runLoginAntigravity(opts) {
   }
 }
 
+async function runLoginDevinDesktop(opts) {
+  try {
+    await runDevinDesktopLogin({
+      browser: opts.browser,
+      timeout: opts.timeout,
+      push: opts.push,
+      context: opts.context,
+    });
+  } catch (err) {
+    process.stderr.write(`\nLogin failed: ${err?.message || err}\n`);
+    process.exit(1);
+  }
+}
+
 export function registerLogin(program) {
   const login = program
     .command("login")
@@ -286,4 +468,17 @@ export function registerLogin(program) {
     .option("--no-push", "Always print the blob, never contact the server")
     .option("--context <name>", "Push to this context instead of the active one")
     .action(runLoginAntigravity);
+
+  login
+    .command("devin-desktop")
+    .description("Authorize Devin Desktop locally and print a credential blob to paste remotely")
+    .option("--no-browser", "Do not auto-open the browser; print the URL instead")
+    .option("--timeout <ms>", "How long to wait for the callback", (v) => parseInt(v, 10), 300000)
+    .option(
+      "--push",
+      "Send the credential to the active context instead of printing it (default when that context is remote)"
+    )
+    .option("--no-push", "Always print the blob, never contact the server")
+    .option("--context <name>", "Push to this context instead of the active one")
+    .action(runLoginDevinDesktop);
 }

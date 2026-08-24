@@ -44,6 +44,35 @@ async function seedConnection(provider, overrides = {}) {
   });
 }
 
+function routeVarint(value: number): Uint8Array {
+  const bytes: number[] = [];
+  let remaining = value;
+  while (remaining >= 0x80) {
+    bytes.push((remaining % 0x80) | 0x80);
+    remaining = Math.floor(remaining / 0x80);
+  }
+  bytes.push(remaining);
+  return Uint8Array.from(bytes);
+}
+
+function routeConcat(...arrays: Uint8Array[]): Uint8Array {
+  const result = new Uint8Array(arrays.reduce((total, bytes) => total + bytes.length, 0));
+  let offset = 0;
+  for (const bytes of arrays) {
+    result.set(bytes, offset);
+    offset += bytes.length;
+  }
+  return result;
+}
+
+function routeCatalogPayload(name: string, id: string): Uint8Array {
+  const encoder = new TextEncoder();
+  const field = (number: number, value: Uint8Array) =>
+    routeConcat(routeVarint((number << 3) | 2), routeVarint(value.length), value);
+  const item = routeConcat(field(1, encoder.encode(name)), field(22, encoder.encode(id)));
+  return field(1, item);
+}
+
 async function callRoute(connectionId, search = "") {
   return providerModelsRoute.GET(
     new Request(`http://localhost/api/providers/${connectionId}/models${search}`),
@@ -81,6 +110,67 @@ test("provider models route returns a static local catalog for non-LLM search/ag
       `${provider} should list "${expectId}"; got: ${ids.join(", ")}`
     );
   }
+});
+
+test("devin-desktop model route uses the local catalog when the token is missing", async () => {
+  let fetchCalled = false;
+  globalThis.fetch = async () => {
+    fetchCalled = true;
+    return new Response("unexpected", { status: 500 });
+  };
+  const connection = await seedConnection("devin-desktop", {
+    providerSpecificData: { autoFetchModels: true },
+  });
+
+  const response = await callRoute(connection.id, "?refresh=true");
+  const body = (await response.json()) as { source: string; models: Array<{ id: string }> };
+
+  assert.equal(response.status, 200);
+  assert.equal(body.source, "local_catalog");
+  assert.equal(fetchCalled, false);
+  assert.ok(body.models.length > 0);
+});
+
+test("devin-desktop model route serves live protobuf catalog models", async () => {
+  globalThis.fetch = async () =>
+    new Response(routeCatalogPayload("SWE-1.7", "swe-1-7"), { status: 200 });
+  const connection = await seedConnection("devin-desktop", {
+    apiKey: "devin-api-key",
+    providerSpecificData: { autoFetchModels: true },
+  });
+
+  const response = await callRoute(connection.id, "?refresh=true");
+  const body = (await response.json()) as {
+    source: string;
+    models: Array<{ id: string; name: string; owned_by: string }>;
+  };
+
+  assert.equal(response.status, 200);
+  assert.equal(body.source, "api");
+  assert.deepEqual(body.models, [
+    {
+      id: "swe-1-7",
+      name: "SWE-1.7",
+      owned_by: "devin-desktop",
+    },
+  ]);
+});
+
+test("devin-desktop model route falls back when catalog fetch throws", async () => {
+  globalThis.fetch = async () => {
+    throw new Error("upstream unavailable");
+  };
+  const connection = await seedConnection("devin-desktop", {
+    apiKey: "devin-api-key",
+    providerSpecificData: { autoFetchModels: true },
+  });
+
+  const response = await callRoute(connection.id, "?refresh=true");
+  const body = (await response.json()) as { source: string; models: Array<{ id: string }> };
+
+  assert.equal(response.status, 200);
+  assert.equal(body.source, "local_catalog");
+  assert.ok(body.models.length > 0);
 });
 
 test("provider models route fetches the live AI/ML API catalog from the auth-free /models endpoint (#5570)", async () => {

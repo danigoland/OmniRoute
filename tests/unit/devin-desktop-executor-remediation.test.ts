@@ -140,7 +140,7 @@ test("Devin Desktop request encoder has a deterministic installed-schema golden"
 
   assert.equal(
     Buffer.from(payload).toString("hex"),
-    "0a3f0a0877696e64737572661206312e34382e321a036b65792205656e2d55533a06332e362e3237520773657373696f6e620877696e6473757266aa01036a7774120673797374656d1a0d0a02753110011a0568656c6c6f1a0e0a02613110021a06616e737765721a160a02743110041a06726573756c743a0663616c6c2d31380572076d6f64656c2d7882010763617363616465aa01076d6f64656c2d78"
+    "0a530a0877696e64737572661206312e34382e321a17646576696e2d73657373696f6e2d746f6b656e246b65792205656e2d55533a06332e362e3237520773657373696f6e620877696e6473757266aa01036a7774120673797374656d1a0d0a02753110011a0568656c6c6f1a0e0a02613110021a06616e737765721a160a02743110041a06726573756c743a0663616c6c2d31380572076d6f64656c2d7882010763617363616465aa01076d6f64656c2d78"
   );
   const request = protobufFields(payload);
   assert.equal(new TextDecoder().decode(bytesValue(request, 2)), "system");
@@ -329,7 +329,10 @@ test("Devin Desktop performs raw-key auth then preserves Connect stream output",
     assert.equal(authHeaders.authorization, undefined);
     const authRequest = protobufFields(authBody);
     const authMetadata = protobufFields(bytesValue(authRequest, 1));
-    assert.equal(new TextDecoder().decode(bytesValue(authMetadata, 3)), "raw-imported-key");
+    assert.equal(
+      new TextDecoder().decode(bytesValue(authMetadata, 3)),
+      "devin-session-token$raw-imported-key"
+    );
 
     assert.equal(chatHeaders["content-type"], "application/connect+proto");
     assert.equal(chatHeaders["connect-protocol-version"], "1");
@@ -338,7 +341,10 @@ test("Devin Desktop performs raw-key auth then preserves Connect stream output",
     assert.equal(chatBody.readUInt32BE(1), chatBody.length - 5);
     const chatRequest = protobufFields(chatBody.subarray(5));
     const chatMetadata = protobufFields(bytesValue(chatRequest, 1));
-    assert.equal(new TextDecoder().decode(bytesValue(chatMetadata, 3)), "raw-imported-key");
+    assert.equal(
+      new TextDecoder().decode(bytesValue(chatMetadata, 3)),
+      "devin-session-token$raw-imported-key"
+    );
     assert.equal(new TextDecoder().decode(bytesValue(chatMetadata, 21)), "jwt-value");
     assert.equal(new TextDecoder().decode(bytesValue(chatRequest, 14)), "model-x");
     assert.equal(new TextDecoder().decode(bytesValue(chatRequest, 21)), "model-x");

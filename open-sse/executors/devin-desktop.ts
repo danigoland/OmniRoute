@@ -13,9 +13,12 @@ import { PROVIDERS } from "../config/constants.ts";
 import { buildErrorBody, sanitizeErrorMessage } from "../utils/error.ts";
 import { BaseExecutor, mergeUpstreamExtraHeaders, type ExecuteInput } from "./base.ts";
 
-const DEVIN_DESKTOP_BASE_URL = "https://server.codeium.com";
+export const DEVIN_DESKTOP_BASE_URL = "https://server.codeium.com";
 const DEVIN_DESKTOP_CHAT_PATH = "/exa.api_server_pb.ApiServerService/GetChatMessage";
 const DEVIN_DESKTOP_AUTH_PATH = "/exa.auth_pb.AuthService/GetUserJwt";
+/** Connect RPC returning the CLI model catalog, observed on server.codeium.com. */
+export const DEVIN_CLI_MODEL_CONFIGS_PATH =
+  "/exa.api_server_pb.ApiServerService/GetCliModelConfigs";
 const DEVIN_DESKTOP_CHAT_URL = `${DEVIN_DESKTOP_BASE_URL}${DEVIN_DESKTOP_CHAT_PATH}`;
 
 const DEVIN_UPSTREAM_IDE_NAME = "windsurf";
@@ -26,8 +29,8 @@ const VERIFIED_DEVIN_DESKTOP_VERSION = "3.6.27";
 const DEFAULT_DEVIN_EXTENSION_VERSION = "1.48.2";
 const DEVIN_VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
 const DEVIN_LOCALE = "en-US";
-const CONNECT_COMPRESSED_FLAG = 0x01;
-const CONNECT_END_STREAM_FLAG = 0x02;
+export const CONNECT_COMPRESSED_FLAG = 0x01;
+export const CONNECT_END_STREAM_FLAG = 0x02;
 const MAX_CONNECT_FRAME_BYTES = 16 * 1024 * 1024;
 const MAX_AUTH_RESPONSE_BYTES = 1024 * 1024;
 
@@ -67,7 +70,7 @@ function concatBytes(arrays: Uint8Array[]): Uint8Array<ArrayBuffer> {
   return result;
 }
 
-function bodyArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+export function bodyArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   const copy = new Uint8Array(bytes.length);
   copy.set(bytes);
   return copy.buffer;
@@ -132,11 +135,22 @@ export type DevinDesktopRequestInput = DevinDesktopMetadataInput & {
   toolChoice?: DevinDesktopToolChoice;
 };
 
+/**
+ * Devin authenticates inside the request payload and expects the session token to carry the
+ * `devin-session-token$` scheme. Stored credentials are often the bare JWT, which the server
+ * rejects with 401 `invalid api key`, so normalize before encoding.
+ */
+export function normalizeDevinDesktopApiKey(apiKey: string): string {
+  const trimmed = apiKey.trim();
+  if (!trimmed || trimmed.startsWith("devin-session-token$")) return trimmed;
+  return `devin-session-token$${trimmed}`;
+}
+
 function encodeMetadata(input: DevinDesktopMetadataInput): Uint8Array {
   return concatBytes([
     encodeString(1, DEVIN_UPSTREAM_IDE_NAME),
     encodeString(2, input.extensionVersion ?? resolveDevinDesktopExtensionVersion()),
-    encodeString(3, input.apiKey),
+    encodeString(3, normalizeDevinDesktopApiKey(input.apiKey)),
     encodeString(4, DEVIN_LOCALE),
     encodeString(7, input.ideVersion ?? resolveDevinDesktopVersion()),
     encodeString(10, input.sessionId),
@@ -343,7 +357,7 @@ function readVarint(bytes: Uint8Array, start: number): [number, number] {
   throw new Error("truncated protobuf varint");
 }
 
-function decodeFields(bytes: Uint8Array): ProtoField[] {
+export function decodeFields(bytes: Uint8Array): ProtoField[] {
   const fields: ProtoField[] = [];
   let offset = 0;
   while (offset < bytes.length) {
@@ -400,7 +414,7 @@ function decodeDevinAuthResponse(bytes: Uint8Array): DevinAuthResponse {
   return result;
 }
 
-async function readBoundedResponse(response: Response, limit: number): Promise<Uint8Array> {
+export async function readBoundedResponse(response: Response, limit: number): Promise<Uint8Array> {
   const reader = response.body?.getReader();
   if (!reader) return new Uint8Array(0);
   const chunks: Uint8Array[] = [];
@@ -520,20 +534,24 @@ function finishReason(stopReason: number, hasToolCalls: boolean): string {
   return "stop";
 }
 
-function serviceBaseUrl(baseUrl: string): string {
+export function devinDesktopServiceBaseUrl(baseUrl: string): string {
   const normalized = baseUrl.replace(/\/+$/, "");
-  for (const path of [DEVIN_DESKTOP_CHAT_PATH, DEVIN_DESKTOP_AUTH_PATH]) {
+  for (const path of [
+    DEVIN_DESKTOP_CHAT_PATH,
+    DEVIN_DESKTOP_AUTH_PATH,
+    DEVIN_CLI_MODEL_CONFIGS_PATH,
+  ]) {
     if (normalized.endsWith(path)) return normalized.slice(0, -path.length);
   }
   return normalized;
 }
 
 function connectChatUrl(baseUrl: string): string {
-  return `${serviceBaseUrl(baseUrl)}${DEVIN_DESKTOP_CHAT_PATH}`;
+  return `${devinDesktopServiceBaseUrl(baseUrl)}${DEVIN_DESKTOP_CHAT_PATH}`;
 }
 
 function authUrl(baseUrl: string): string {
-  return `${serviceBaseUrl(baseUrl)}${DEVIN_DESKTOP_AUTH_PATH}`;
+  return `${devinDesktopServiceBaseUrl(baseUrl)}${DEVIN_DESKTOP_AUTH_PATH}`;
 }
 
 function jsonErrorResponse(status: number, message: string): Response {

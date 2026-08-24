@@ -262,8 +262,8 @@ export const OAUTH_PROVIDERS = {
     subscriptionRisk: true,
     riskNoticeVariant: "oauth",
     authHint:
-      'Click "Browser Login" to sign in at app.devin.ai. A Windsurf IDE token (sk-ws-… / ott$…) is a different credential and is rejected by Devin, so browser login is required unless you already hold a Devin session JWT.',
-    website: "https://windsurf.com",
+      'Paste an existing Devin API key from an authenticated Devin session. Key export availability and steps vary by Devin version and account. Otherwise click "Browser Login" to sign in at app.devin.ai.',
+    website: "https://devin.ai",
   },
   "devin-cli": {
     id: "devin-cli",

@@ -35,6 +35,7 @@ import {
   fetchGheCopilotModels,
 } from "@omniroute/open-sse/services/githubCopilotModels.ts";
 import { fetchKiroAvailableModels } from "@omniroute/open-sse/services/kiroModels.ts";
+import { fetchDevinCliModelConfigs } from "@omniroute/open-sse/services/devinDesktopModels.ts";
 import {
   buildGlmCodingHeaders,
   buildGlmModelsUrl,
@@ -1795,6 +1796,70 @@ export async function GET(
       });
     }
 
+    if (provider === "devin-desktop") {
+      const cachedResponse = maybeReturnCachedDiscovery();
+      if (cachedResponse) return cachedResponse;
+
+      const autoFetchDisabledResponse = maybeReturnAutoFetchDisabled();
+      if (autoFetchDisabledResponse) return autoFetchDisabledResponse;
+
+      const token = accessToken || apiKey;
+      if (!token) {
+        const fallback = buildDiscoveryFallbackResponse({
+          cacheWarning: "OAuth token unavailable — using cached catalog",
+          localWarning: "OAuth token unavailable — using local catalog",
+        });
+        if (fallback) return fallback;
+        return buildResponse({
+          provider,
+          connectionId,
+          models: toLocalCatalogModels(),
+          source: "local_catalog",
+          warning: "OAuth token unavailable — using local catalog",
+        });
+      }
+
+      let discovery: Awaited<ReturnType<typeof fetchDevinCliModelConfigs>>;
+      try {
+        discovery = await fetchDevinCliModelConfigs({
+          apiKey: token,
+          baseUrl: getProviderBaseUrl(connection.providerSpecificData) || undefined,
+          fetchImpl: (url, init) =>
+            safeOutboundFetch(url as string, {
+              ...SAFE_OUTBOUND_FETCH_PRESETS.modelsDiscovery,
+              guard: getProviderOutboundGuard(),
+              proxyConfig: proxy,
+              ...(init as Record<string, unknown>),
+            }),
+        });
+      } catch (error) {
+        discovery = {
+          source: "error",
+          models: [],
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+
+      if (discovery.source === "api" && discovery.models.length > 0) {
+        return buildApiDiscoveryResponse(
+          discovery.models.map((model) => ({ ...model, owned_by: "devin-desktop" }))
+        );
+      }
+
+      const fallback = buildDiscoveryFallbackResponse({
+        cacheWarning: "Devin catalog API unavailable — using cached catalog",
+        localWarning: "Devin catalog API unavailable — using local catalog",
+      });
+      if (fallback) return fallback;
+      return buildResponse({
+        provider,
+        connectionId,
+        models: toLocalCatalogModels(),
+        source: "local_catalog",
+        warning: "Devin catalog API unavailable — using local catalog",
+      });
+    }
+
     if (provider === "vertex" || provider === "vertex-partner") {
       const cachedResponse = maybeReturnCachedDiscovery();
       if (cachedResponse) return cachedResponse;
@@ -1906,8 +1971,7 @@ export async function GET(
       // ponytail: Anthropic partner models via Model Garden publisher endpoint (Bearer only)
       if (bearerToken) {
         const psd = asRecord(connection.providerSpecificData);
-        const region =
-          (typeof psd.region === "string" && psd.region.trim()) || "us-central1";
+        const region = (typeof psd.region === "string" && psd.region.trim()) || "us-central1";
 
         // Extract project_id from SA JSON for project-scoped listing (mirrors executor URL pattern).
         // Falls back to global publisher endpoint if no project available.
@@ -1917,7 +1981,9 @@ export async function GET(
           try {
             const sa = JSON.parse(credential);
             if (sa?.project_id) projectId = sa.project_id;
-          } catch { /* not SA JSON, skip */ }
+          } catch {
+            /* not SA JSON, skip */
+          }
         }
         if (projectId) {
           anthropicModelsUrl = `https://aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/anthropic/models`;
@@ -1938,9 +2004,8 @@ export async function GET(
           });
           if (anthropicResponse.ok) {
             const anthropicData = await anthropicResponse.json();
-            const { parseVertexAnthropicModels } = await import(
-              "@/lib/providerModels/vertexAnthropicModelsParser"
-            );
+            const { parseVertexAnthropicModels } =
+              await import("@/lib/providerModels/vertexAnthropicModelsParser");
             allModels.push(...parseVertexAnthropicModels(anthropicData));
           } else {
             console.log("[models] Vertex Anthropic partner discovery failed", {

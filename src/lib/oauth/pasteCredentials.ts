@@ -18,11 +18,11 @@ import { decodeCredentialBlob, type CredentialBlob } from "./credentialBlob";
 
 /**
  * Providers eligible for the paste-credentials flow: Google native-loopback
- * clients whose consent cannot complete on a headless/remote host. `agy` is the
- * Antigravity alias. Codex is intentionally excluded — it has its own browser
- * device flow (`device-complete`) that works remotely.
+ * clients and Devin Desktop's local PKCE helper. `agy` is the Antigravity alias.
+ * Codex is intentionally excluded — it has its own browser device flow
+ * (`device-complete`) that works remotely.
  */
-export const PASTE_CREDENTIAL_PROVIDERS = new Set(["antigravity", "agy"]);
+export const PASTE_CREDENTIAL_PROVIDERS = new Set(["antigravity", "agy", "devin-desktop"]);
 
 /**
  * Validate + decode a pasted credential blob for a given route provider.
