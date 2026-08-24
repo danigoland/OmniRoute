@@ -33,8 +33,7 @@ export { formatDeviceCodeRemaining } from "./OAuthModalPanels";
 const GOOGLE_OAUTH_PROVIDERS = new Set(["antigravity", "agy"]);
 
 // Devin's CLI authorization flow accepts exactly one redirect target; these must
-// stay in sync with WINDSURF_CONFIG (legacy name for Devin Desktop's OAuth
-// client) in src/lib/oauth/constants/oauth.ts.
+// stay in sync with DEVIN_DESKTOP_CONFIG in src/lib/oauth/constants/oauth.ts.
 const DEVIN_CALLBACK_HOST = "127.0.0.1";
 const DEVIN_CALLBACK_PORT = 59653;
 const DEVIN_CALLBACK_PATH = "/callback";

@@ -19,12 +19,11 @@ import {
 
 const tokens = { access_token: "ya29.x", refresh_token: "1//r", expires_in: 3599 };
 
-test("allowlist contains antigravity, agy, and devin-desktop, not codex or windsurf", () => {
+test("allowlist contains antigravity, agy, and devin-desktop, not codex or devin-cli", () => {
   assert.ok(PASTE_CREDENTIAL_PROVIDERS.has("antigravity"));
   assert.ok(PASTE_CREDENTIAL_PROVIDERS.has("agy"));
   assert.ok(PASTE_CREDENTIAL_PROVIDERS.has("devin-desktop"));
   assert.ok(!PASTE_CREDENTIAL_PROVIDERS.has("codex"), "codex uses its own device-complete path");
-  assert.ok(!PASTE_CREDENTIAL_PROVIDERS.has("windsurf"));
   assert.ok(!PASTE_CREDENTIAL_PROVIDERS.has("devin-cli"));
 });
 
@@ -45,9 +44,8 @@ test("accepts a matching devin-desktop blob", () => {
   assert.equal(result.tokens.access_token, "devin.jwt");
 });
 
-test("rejects Devin blobs routed to windsurf or devin-cli", () => {
+test("rejects Devin blobs routed to devin-cli", () => {
   const blob = encodeCredentialBlob({ provider: "devin-desktop", tokens });
-  assert.throws(() => parsePastedCredentials("windsurf", blob), /not supported|provider/i);
   assert.throws(() => parsePastedCredentials("devin-cli", blob), /not supported|provider/i);
 });
 

@@ -1,7 +1,7 @@
 // Devin always redirects to its fixed loopback callback address regardless of
 // how OmniRoute is accessed. A remote/LAN user landing on that error page
 // cannot tell it apart from a misconfiguration unless the modal names the
-// exact address — and only for `windsurf`, since every other provider's
+// exact address — and only for `devin-desktop`, since every other provider's
 // callback port varies (or doesn't apply).
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -12,20 +12,20 @@ const en = JSON.parse(readFileSync("src/i18n/messages/en.json", "utf8")) as {
   oauthModal: Record<string, string>;
 };
 
-test("OAuthModalPanels renders windsurfLoopbackNotice only when provider === windsurf", () => {
-  const match = panelsSource.match(/\{provider === "windsurf" && \(([\s\S]*?)\n {6}\)\}/);
-  assert.ok(match, 'expected a `provider === "windsurf"` guarded block');
+test("OAuthModalPanels renders windsurfLoopbackNotice only when provider === devin-desktop", () => {
+  const match = panelsSource.match(/\{provider === "devin-desktop" && \(([\s\S]*?)\n {6}\)\}/);
+  assert.ok(match, 'expected a `provider === "devin-desktop"` guarded block');
   assert.match(match![1], /t\.rich\("windsurfLoopbackNotice"/);
 });
 
-test("windsurfLoopbackNotice sources its address from WINDSURF_CONFIG, not a hardcoded port", () => {
+test("windsurfLoopbackNotice sources its address from DEVIN_DESKTOP_CONFIG, not a hardcoded port", () => {
   assert.match(
     panelsSource,
-    /import \{ WINDSURF_CONFIG \} from "@\/lib\/oauth\/constants\/oauth";/
+    /import \{ DEVIN_DESKTOP_CONFIG \} from "@\/lib\/oauth\/constants\/oauth";/
   );
   assert.match(
     panelsSource,
-    /address:\s*`\$\{WINDSURF_CONFIG\.callbackHost\}:\$\{WINDSURF_CONFIG\.callbackPort\}`/
+    /address:\s*`\$\{DEVIN_DESKTOP_CONFIG\.callbackHost\}:\$\{DEVIN_DESKTOP_CONFIG\.callbackPort\}`/
   );
 });
 

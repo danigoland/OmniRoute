@@ -76,7 +76,7 @@ export function bodyArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return copy.buffer;
 }
 
-function encodeField(fieldNumber: number, payload: Uint8Array): Uint8Array {
+function encodeField(fieldNumber: number, payload: Uint8Array): Uint8Array<ArrayBuffer> {
   return concatBytes([encodeVarint((fieldNumber << 3) | 2), encodeVarint(payload.length), payload]);
 }
 
@@ -160,8 +160,27 @@ function encodeMetadata(input: DevinDesktopMetadataInput): Uint8Array {
 }
 
 /** Encode the unary GetUserJwtRequest (field 1 = Metadata), without an envelope. */
-export function encodeDevinDesktopAuthRequest(input: DevinDesktopMetadataInput): Uint8Array {
+export function encodeDevinDesktopAuthRequest(
+  input: DevinDesktopMetadataInput
+): Uint8Array<ArrayBuffer> {
   return encodeField(1, encodeMetadata(input));
+}
+
+/** Auth probe endpoint used by the dashboard connection test (see buildDevinDesktopProbeBody). */
+export const DEVIN_DESKTOP_PROBE_URL = `${DEVIN_DESKTOP_BASE_URL}${DEVIN_DESKTOP_AUTH_PATH}`;
+
+/**
+ * Connection-test probe body for the dashboard: Devin authenticates inside the request
+ * PAYLOAD (the key is a protobuf field, not an Authorization header), so the test harness
+ * cannot use a static body. Exposed as a single entry point rather than the individual
+ * protobuf helpers to keep the wire encoding owned by this module.
+ *
+ * A valid key returns 200; a revoked or malformed one returns 401 `invalid api key`, a real
+ * auth signal that token-expiry checks alone cannot produce. encodeMetadata normalizes the
+ * session-token scheme, so bare JWTs probe correctly too.
+ */
+export function buildDevinDesktopProbeBody(apiKey: string): Uint8Array<ArrayBuffer> {
+  return encodeDevinDesktopAuthRequest({ apiKey, sessionId: randomUUID() });
 }
 
 function encodeChatToolCall(toolCall: DevinDesktopToolCallInput): Uint8Array {

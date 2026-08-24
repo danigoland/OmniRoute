@@ -20,7 +20,6 @@ test("provider onboarding catalog exposes API-key and OAuth providers for the wi
   assert.ok(oauthOptions.some((option) => option.id === "cursor"));
   assert.ok(!oauthOptions.some((option) => option.id === "zed"));
   assert.ok(!oauthOptions.some((option) => option.id === "devin-desktop"));
-  assert.ok(!oauthOptions.some((option) => option.id === "windsurf"));
   assert.ok(!oauthOptions.some((option) => option.id === "devin-cli"));
   assert.ok(!oauthOptions.some((option) => option.id === "qoder"));
 

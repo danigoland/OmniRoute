@@ -72,11 +72,11 @@ test("buildPkceLoopbackMismatchWarning has a generic fallback for unknown provid
 // Devin pins its redirect to 127.0.0.1:59653 on the USER's machine, so a LAN-IP
 // dashboard can still finish the login by pasting the callback URL. The #8046
 // warning was a dead end for it: the modal errored before reaching that step.
-test("windsurf falls through the LAN-IP guard to the paste flow", () => {
+test("devin-desktop falls through the LAN-IP guard to the paste flow", () => {
   const recoverable = extractSet("PKCE_PASTE_RECOVERABLE_PROVIDERS");
   assert.ok(
-    recoverable.includes("windsurf"),
-    "windsurf must be paste-recoverable so the LAN-IP guard does not dead-end it"
+    recoverable.includes("devin-desktop"),
+    "devin-desktop must be paste-recoverable so the LAN-IP guard does not dead-end it"
   );
 
   // The guard still fires, but only for providers with no manual recovery.

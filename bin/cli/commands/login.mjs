@@ -176,7 +176,11 @@ function codeChallengeFor(verifier) {
   return createHash("sha256").update(verifier).digest("base64url");
 }
 
-/** Build Devin Desktop's fixed-loopback PKCE authorization request. */
+/**
+ * Build Devin Desktop's fixed-loopback PKCE authorization request.
+ * @param {() => string} [makeState]
+ * @param {() => string} [makeVerifier]
+ */
 export function buildDevinDesktopAuthRequest(
   makeState = () => randomUUID(),
   makeVerifier = generateCodeVerifier

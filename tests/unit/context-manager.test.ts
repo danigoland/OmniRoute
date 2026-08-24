@@ -75,13 +75,13 @@ for (const modelId of HYPERAGENT_FALLBACK_MODEL_IDS) {
 }
 
 test("getTokenLimit: does not force 1M onto non-hyperagent providers serving the same model ids", () => {
-  // windsurf used to pin this exact id at 200000, but its built-in provider entry was
-  // retired (#8228 — replaced by devin-desktop). With no per-provider source left,
-  // #11034 resolves the effort-suffixed variant via its BASE model (`claude-opus-4.7-max`
-  // → `claude-opus-4.7` → canonical `claude-opus-4-7`), whose real catalog window IS 1M.
-  // This is a legitimate base-model resolution, not the forbidden hyperagent default leak:
-  // it comes from the shared model catalog, never from the hyperagent registry scope.
-  assert.equal(getTokenLimit("windsurf", "claude-opus-4.7-max"), 1_000_000);
+  // Devin Desktop's former provider entry is retired; with no per-provider source left,
+  // #11034 resolves the effort-suffixed variant via its BASE model
+  // (`claude-opus-4.7-max` → `claude-opus-4.7` → canonical `claude-opus-4-7`),
+  // whose real catalog window IS 1M. This is a legitimate base-model resolution,
+  // not the forbidden hyperagent default leak: it comes from the shared model
+  // catalog, never from the hyperagent registry scope.
+  assert.equal(getTokenLimit("devin-desktop", "claude-opus-4.7-max"), 1_000_000);
   // bluesminds still pins its own claude-opus-4-5 entry to 200000, and that pin must win
   // over both the name heuristic and any 1M window from sibling providers/catalogs.
   assert.equal(getTokenLimit("bluesminds", "claude-opus-4-5"), 200000);

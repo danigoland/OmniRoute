@@ -6,8 +6,8 @@ import { sanitizeErrorMessage } from "../utils/error.ts";
  * error-only chunk (`data: {"error":...}`) and no content chunks.
  *
  * Some executors always return `text/event-stream` even on failure (e.g. the
- * Devin/Windsurf CLI executors emit `data: {"error":{"message":"Devin CLI not
- * found..."}}`). Those chunks have no `choices`/Claude/Responses content, so the
+ * Devin CLI executors emit `data: {"error":{"message":"Devin CLI not
+ * found..."}}`). Those chunks have no `choices`/Claude/Responses content, so
  * content parsers (parseSSEToOpenAIResponse etc.) correctly return `null`. Without
  * this helper the caller would replace the real upstream error with a generic
  * "Invalid SSE response" 502, swallowing the actionable message (#3324).

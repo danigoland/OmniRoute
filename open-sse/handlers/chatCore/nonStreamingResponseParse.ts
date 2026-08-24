@@ -94,7 +94,7 @@ export async function parseNonStreamingResponseBody(opts: {
     const parsedFromSSE = parseNonStreamingSSEPayload(streamPayload, targetFormat, model);
 
     if (!parsedFromSSE) {
-      // Some executors (e.g. the Devin/Windsurf CLI) always emit text/event-stream, signalling
+      // Some executors (e.g. the Devin CLI) always emit text/event-stream, signalling
       // failure with an error-only chunk (`data: {"error":{"message":"Devin CLI not found..."}}`)
       // that carries no `choices`. Surface that real, sanitized message instead of the generic 502
       // so the actionable error is not swallowed (#3324).

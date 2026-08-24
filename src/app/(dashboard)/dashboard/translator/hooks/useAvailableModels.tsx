@@ -33,8 +33,8 @@ const FORMAT_MODEL_PREFIXES = {
  * #3505. Pure + exported for testing.
  *
  * `aliasKey` covers providers whose catalog namespace is their registry alias rather than
- * their id (windsurf -> "ws"). /v1/models emits BOTH namespaces under the default
- * MODELS_CATALOG_PREFIX_MODE="dual", but "alias" mode drops the id-prefixed rows entirely —
+ * their id. `/v1/models` can emit both namespaces under the default
+ * `MODELS_CATALOG_PREFIX_MODE="dual"`, while `"alias"` mode may drop the id-prefixed rows —
  * filtering on the id alone then yields an empty model picker.
  */
 export function filterModelsByProvider(

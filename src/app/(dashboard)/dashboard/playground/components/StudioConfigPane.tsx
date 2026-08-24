@@ -92,9 +92,8 @@ export default function StudioConfigPane({ configState, setConfigState }: Studio
     selectedProviderOption?.modelPrefix,
     isCompatibleConnectionId
   );
-  // #8046 follow-up: a built-in provider whose catalog namespace is its registry alias
-  // (windsurf -> "ws") only lists id-prefixed rows under the default catalog prefix mode.
-  // Pass the alias too so MODELS_CATALOG_PREFIX_MODE="alias" doesn't empty the picker.
+  // #8046 follow-up: pass a built-in provider's registry alias alongside its
+  // id so alias-only catalog modes do not empty the model picker.
   const providerAliasKey =
     typeof AI_PROVIDERS[provider]?.alias === "string" ? AI_PROVIDERS[provider].alias : undefined;
   const {

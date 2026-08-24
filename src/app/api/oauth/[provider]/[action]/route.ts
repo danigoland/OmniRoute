@@ -55,9 +55,9 @@ const PKCE_CALLBACK_PROVIDERS = new Set([
   "grok-cli",
   "openference",
   // Devin's CLI authorization flow requires a loopback callback on port 59653.
-  // Only `windsurf` is listed: `devin-cli` is served by DevinCliExecutor over
-  // ACP and cannot use a Devin session JWT.
-  "windsurf",
+  // Only `devin-desktop` is listed: `devin-cli` is served by DevinCliExecutor
+  // over ACP and cannot use a Devin session JWT.
+  "devin-desktop",
 ]);
 
 /**
@@ -78,12 +78,12 @@ const NO_PKCE_DEVICE_CODE_PROVIDERS = new Set([
 ]);
 
 /**
- * Providers whose PKCE flow has been retired but whose import-token path is
- * still active. Returning 410 Gone on `authorize` / `start-callback-server` /
- * `poll-callback` (instead of 400) tells callers the action is permanently
- * gone and points them at /import-token.
+ * Providers whose browser OAuth flow is unavailable but whose import-token path
+ * is still active. Returning 410 Gone on `authorize` / `start-callback-server` /
+ * `poll-callback` (instead of 400) tells callers the action is permanently gone
+ * and points them at /import-token.
  */
-const RETIRED_PKCE_PROVIDERS = new Set(["devin-desktop", "devin-cli"]);
+const RETIRED_PKCE_PROVIDERS = new Set(["devin-cli"]);
 
 /** Providers that allow direct import of a raw API token (no OAuth exchange). */
 const IMPORT_TOKEN_PROVIDERS = new Set(["devin-desktop", "devin-cli", "grok-cli"]);

@@ -2,101 +2,13 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createServer, type Server } from "node:http";
-import { gunzipSync } from "node:zlib";
+
 import {
-  WindsurfExecutor,
-  WINDSURF_PROBE_URL,
-  buildWindsurfProbeBody,
-} from "../../open-sse/executors/windsurf.ts";
-import { windsurfProvider } from "../../open-sse/config/providers/registry/windsurf/index.ts";
+  DevinDesktopExecutor,
+  DEVIN_DESKTOP_PROBE_URL,
+  buildDevinDesktopProbeBody,
+} from "../../open-sse/executors/devin-desktop.ts";
 import { OAUTH_TEST_CONFIG } from "../../src/app/api/providers/[id]/test/oauthTestConfig.ts";
-
-// ─── Model alias resolution (windsurf) ───────────────────────────────────────
-// We exercise the alias map indirectly through the exported class because
-// resolveWsModelId is not exported. WindsurfExecutor.buildRequest() calls it.
-
-describe("Windsurf MODEL_ALIAS_MAP", () => {
-  const ALIAS_CASES: [string, string][] = [
-    // SWE dot→dash conversions
-    ["swe-1.6-fast", "swe-1-6-fast"],
-    ["swe-1.6", "swe-1-6"],
-    ["swe-1.5", "swe-1p5"],
-    ["swe-1.5-fast", "swe-1p5"],
-    // GPT-5.5 default effort
-    ["gpt-5.5", "gpt-5-5-medium"],
-    // GPT-5.4 default effort
-    ["gpt-5.4", "gpt-5-4-medium"],
-    // GPT-5.3-codex default
-    ["gpt-5.3-codex", "gpt-5-3-codex-medium"],
-    // Claude aliases
-    ["claude-sonnet-4.6", "claude-sonnet-4-6"],
-    ["claude-opus-4.7-max", "claude-opus-4-7-max"],
-    // Gemini aliases
-    ["gemini-2.5-pro", "MODEL_GOOGLE_GEMINI_2_5_PRO"],
-  ];
-
-  const PASSTHROUGH_CASES = [
-    "gpt-5",
-    "gpt-5-codex",
-    "grok-code-fast-1",
-    "deepseek-v4",
-    "some-unknown-model",
-    // These aliases were removed from MODEL_ALIAS_MAP in v3.8.x — pass through unchanged:
-    "claude-3.7-sonnet-thinking",
-    "gemini-3.0-pro",
-    "kimi-k2",
-  ];
-
-  // Load the alias map from the module source — we parse it at test time to
-  // avoid importing the full executor (which would require provider registry).
-  let aliasMap: Record<string, string>;
-
-  test("setup: parse MODEL_ALIAS_MAP from executor source", async () => {
-    const fs = await import("node:fs/promises");
-    const src = await fs.readFile(
-      new URL("../../open-sse/executors/windsurf.ts", import.meta.url),
-      "utf8"
-    );
-    const match = src.match(/const MODEL_ALIAS_MAP[^=]*=\s*(\{[\s\S]*?\n\})/);
-    assert.ok(match, "MODEL_ALIAS_MAP block should be found in source");
-    // Safe eval via Function constructor replacement — build a JS object literal
-    const objSrc = match[1]
-      .replace(/\/\/[^\n]*/g, "") // strip line comments
-      .trim();
-    // Parse using JSON after stripping trailing commas (simple approach)
-    const jsonLike = objSrc
-      .replace(/,\s*([\]}])/g, "$1") // trailing commas
-      .replace(/'/g, '"'); // single → double quotes
-    aliasMap = JSON.parse(jsonLike);
-    assert.ok(typeof aliasMap === "object");
-  });
-
-  for (const [input, expected] of ALIAS_CASES) {
-    test(`alias: "${input}" → "${expected}"`, () => {
-      const result = aliasMap[input] ?? input;
-      assert.equal(result, expected);
-    });
-  }
-
-  for (const model of PASSTHROUGH_CASES) {
-    test(`passthrough: "${model}" has no alias (returns itself)`, () => {
-      const result = aliasMap[model] ?? model;
-      assert.equal(result, model);
-    });
-  }
-});
-
-test("windsurf catalog advertises direct Devin tool-capable model families", () => {
-  const toolFamilies = /^(swe|claude|gpt|gemini)-/;
-  for (const model of windsurfProvider.models) {
-    if (toolFamilies.test(model.id))
-      assert.equal(model.toolCalling, true, `${model.id} should support tools`);
-  }
-  for (const model of windsurfProvider.models) {
-    if (!toolFamilies.test(model.id))
-      assert.equal(model.toolCalling, undefined, `${model.id} is not verified`);
-  }
-});
 
 // ─── Devin CLI binary resolution ─────────────────────────────────────────────
 // resolveDevinBin() is not exported, but its contract is simple:
@@ -131,8 +43,8 @@ describe("DevinCli binary resolution", () => {
 // ─── Devin browser PKCE flow (restored 2026-07-25) ───────────────────────────
 import { generateAuthData, getProvider } from "@/lib/oauth/providers";
 
-test("windsurf provider: uses Devin's browser PKCE flow", () => {
-  const provider = getProvider("windsurf");
+test("devin-desktop provider: uses Devin's browser PKCE flow", () => {
+  const provider = getProvider("devin-desktop");
   assert.equal(provider.flowType, "authorization_code_pkce");
   // Devin's authorization page only accepts its own fixed loopback redirect.
   assert.equal(provider.fixedPort, 59653);
@@ -140,8 +52,8 @@ test("windsurf provider: uses Devin's browser PKCE flow", () => {
   assert.equal(provider.callbackHost, "127.0.0.1");
 });
 
-test("windsurf provider: authorize URL targets Devin's CLI endpoint with PKCE", () => {
-  const data = generateAuthData("windsurf", "http://127.0.0.1:59653/callback");
+test("devin-desktop provider: authorize URL targets Devin's CLI endpoint with PKCE", () => {
+  const data = generateAuthData("devin-desktop", "http://127.0.0.1:59653/callback");
   assert.notEqual(data.supported, false);
   const url = new URL(data.authUrl);
   assert.equal(url.origin + url.pathname, "https://app.devin.ai/auth/cli/continue");
@@ -153,8 +65,8 @@ test("windsurf provider: authorize URL targets Devin's CLI endpoint with PKCE", 
   assert.ok(data.codeVerifier, "a PKCE verifier must be issued for the exchange");
 });
 
-test("windsurf provider: rejects a Windsurf IDE token as an import credential", () => {
-  const provider = getProvider("windsurf");
+test("devin-desktop provider: rejects a Windsurf IDE token as an import credential", () => {
+  const provider = getProvider("devin-desktop");
   // Verified live 2026-07-25: Devin's GetUserJwt rejects both formats with
   // "Invalid token", so they must not be storable as Devin credentials.
   for (const token of ["sk-ws-abcdef0123456789", "ott$8rz9AP_-KisKyKhfjnxiTEo"]) {
@@ -164,8 +76,8 @@ test("windsurf provider: rejects a Windsurf IDE token as an import credential", 
   }
 });
 
-test("windsurf provider: accepts a Devin session JWT and derives expiry from exp", () => {
-  const provider = getProvider("windsurf");
+test("devin-desktop provider: accepts a Devin session JWT and derives expiry from exp", () => {
+  const provider = getProvider("devin-desktop");
   const exp = Math.floor(Date.now() / 1000) + 3600;
   const jwt = `header.${Buffer.from(JSON.stringify({ exp })).toString("base64url")}.sig`;
   assert.equal(provider.validateImportToken(jwt).valid, true);
@@ -178,8 +90,8 @@ test("windsurf provider: accepts a Devin session JWT and derives expiry from exp
   assert.equal(mapped.providerSpecificData.authMethod, "import");
 });
 
-test("windsurf provider: maps a browser-exchanged Devin token as browser auth", () => {
-  const mapped = getProvider("windsurf").mapTokens({ token: "opaque-devin-token" });
+test("devin-desktop provider: maps a browser-exchanged Devin token as browser auth", () => {
+  const mapped = getProvider("devin-desktop").mapTokens({ token: "opaque-devin-token" });
   assert.equal(mapped.accessToken, "opaque-devin-token");
   assert.equal(mapped.providerSpecificData.authMethod, "browser");
 });
@@ -212,12 +124,12 @@ test("devin-cli provider: accepts a pasted CLI credential", () => {
 // ─── OAuth route: Devin PKCE actions are live, not retired ───────────────────
 import { GET as oauthGet } from "@/app/api/oauth/[provider]/[action]/route";
 
-test("OAuth route: GET windsurf/authorize is no longer 410 Gone", async () => {
-  const request = new Request("http://localhost:20128/api/oauth/windsurf/authorize", {
+test("OAuth route: GET devin-desktop/authorize is no longer 410 Gone", async () => {
+  const request = new Request("http://localhost:20128/api/oauth/devin-desktop/authorize", {
     method: "GET",
   });
   const response = await oauthGet(request, {
-    params: Promise.resolve({ provider: "windsurf", action: "authorize" }),
+    params: Promise.resolve({ provider: "devin-desktop", action: "authorize" }),
   } as never);
   assert.notEqual(response.status, 410);
 });
@@ -234,7 +146,7 @@ test("Devin token exchange posts PKCE JSON and returns the session token", async
     return new Response(JSON.stringify({ token: "devin-jwt" }), { status: 200 });
   }) as typeof globalThis.fetch;
   try {
-    const provider = getProvider("windsurf");
+    const provider = getProvider("devin-desktop");
     const tokens = await provider.exchangeToken(
       provider.config,
       "auth-code",
@@ -256,7 +168,7 @@ test("Devin token exchange surfaces an upstream failure", async () => {
   globalThis.fetch = (async () =>
     new Response("code already redeemed", { status: 400 })) as typeof globalThis.fetch;
   try {
-    const provider = getProvider("windsurf");
+    const provider = getProvider("devin-desktop");
     await assert.rejects(
       provider.exchangeToken(provider.config, "stale", "http://127.0.0.1:59653/callback", "v"),
       /Devin token exchange failed \(400\): code already redeemed/
@@ -267,7 +179,7 @@ test("Devin token exchange surfaces an upstream failure", async () => {
 });
 
 test("Devin token exchange refuses to run without a PKCE verifier", async () => {
-  const provider = getProvider("windsurf");
+  const provider = getProvider("devin-desktop");
   await assert.rejects(
     provider.exchangeToken(provider.config, "code", "http://127.0.0.1:59653/callback", ""),
     /requires the PKCE code_verifier/
@@ -289,7 +201,7 @@ test("OAuth route: GET codex/authorize is NOT retired (regression check)", async
 // got stored as accessToken and SQLite rejected it with
 //   "SQLite3 can only bind numbers, strings, bigints, buffers, and null".
 // Every persisted field must stay a SQLite-bindable primitive.
-for (const providerId of ["windsurf", "devin-cli"]) {
+for (const providerId of ["devin-desktop", "devin-cli"]) {
   test(`${providerId} mapTokens: persists SQLite-bindable primitives`, () => {
     const jwt = `header.${Buffer.from(JSON.stringify({ exp: 4102444800 })).toString("base64url")}.sig`;
     const mapped = getProvider(providerId).mapTokens({ accessToken: jwt });
@@ -401,7 +313,7 @@ function fieldStringLocal(fields: Map<number, ProtoField[]>, field: number, inde
 
 function fieldNumberLocal(fields: Map<number, ProtoField[]>, field: number, index = 0): number {
   const value = fields.get(field)?.[index]?.value;
-  assert.equal(typeof value, "number", `field ${field} should be a varint`);
+  assert.ok(typeof value === "number", `field ${field} should be a varint`);
   return value;
 }
 
@@ -450,7 +362,7 @@ async function closeServerLocal(server: Server): Promise<void> {
   );
 }
 
-test("WindsurfExecutor exchanges JWT and forwards tool history over Devin Connect", async () => {
+test("DevinDesktopExecutor exchanges JWT and forwards tool history over Devin Connect", async () => {
   let authMetadata: Map<number, ProtoField[]> | undefined;
   let chatRequest: Map<number, ProtoField[]> | undefined;
   const { baseUrl, server } = await startDevinTestServer(async (path, body) => {
@@ -459,14 +371,13 @@ test("WindsurfExecutor exchanges JWT and forwards tool history over Devin Connec
       return concatBytesLocal([encodeStringLocal(1, "jwt-xyz"), encodeStringLocal(2, baseUrl)]);
     }
     if (path === "/exa.api_server_pb.ApiServerService/GetChatMessage") {
-      assert.equal(body[0], 0x01, "chat request should use gzip Connect framing");
-      const compressedLength = new DataView(
-        body.buffer,
-        body.byteOffset,
-        body.byteLength
-      ).getUint32(1, false);
-      assert.equal(compressedLength, body.length - 5);
-      chatRequest = decodeFieldsLocal(gunzipSync(body.slice(5)));
+      assert.equal(body[0], 0x00, "chat request should use an uncompressed Connect frame");
+      const frameLength = new DataView(body.buffer, body.byteOffset, body.byteLength).getUint32(
+        1,
+        false
+      );
+      assert.equal(frameLength, body.length - 5);
+      chatRequest = decodeFieldsLocal(body.slice(5));
       const firstToolDelta = concatBytesLocal([
         encodeStringLocal(1, "call-weather"),
         encodeStringLocal(2, "get_weather"),
@@ -497,7 +408,7 @@ test("WindsurfExecutor exchanges JWT and forwards tool history over Devin Connec
     return null;
   });
   try {
-    const result = await new WindsurfExecutor().execute({
+    const result = await new DevinDesktopExecutor().execute({
       model: "claude-sonnet-4.6",
       stream: true,
       credentials: { accessToken: "sk-ws-test", providerSpecificData: { baseUrl } },
@@ -556,8 +467,12 @@ test("WindsurfExecutor exchanges JWT and forwards tool history over Devin Connec
     assert.equal(fieldStringLocal(chatMetadata, 21), "jwt-xyz");
     assert.equal(fieldStringLocal(chatRequest, 2), "system rules\n\ndeveloper rules");
     assert.equal(fieldNumberLocal(chatRequest, 7), 5);
-    assert.equal(fieldNumberLocal(chatRequest, 11), 1);
-    assert.equal(fieldStringLocal(chatRequest, 21), "claude-sonnet-4-6");
+    assert.equal(
+      chatRequest.has(11),
+      false,
+      "parallel-tool disable flag is omitted unless requested"
+    );
+    assert.equal(fieldStringLocal(chatRequest, 21), "claude-sonnet-4.6");
 
     const prompts = (chatRequest.get(3) ?? []).map((field) =>
       decodeFieldsLocal(field.value as Uint8Array)
@@ -565,9 +480,6 @@ test("WindsurfExecutor exchanges JWT and forwards tool history over Devin Connec
     assert.equal(prompts.length, 3);
     assert.equal(fieldNumberLocal(prompts[0], 2), 1);
     assert.equal(fieldStringLocal(prompts[0], 3), "Find weather for London.");
-    const image = decodeFieldsLocal(fieldBytesLocal(prompts[0], 10));
-    assert.equal(fieldStringLocal(image, 1), "YWJj");
-    assert.equal(fieldStringLocal(image, 2), "image/png");
     assert.equal(fieldNumberLocal(prompts[1], 2), 2);
     assert.equal(fieldStringLocal(prompts[1], 3), "I'll check.");
     const priorToolCall = decodeFieldsLocal(fieldBytesLocal(prompts[1], 6));
@@ -596,21 +508,19 @@ test("WindsurfExecutor exchanges JWT and forwards tool history over Devin Connec
       index: 0,
       id: "call-weather",
       type: "function",
-      function: { name: "get_weather", arguments: "" },
+      function: { name: "get_weather", arguments: '{"city":"' },
     });
     assert.deepEqual(chunks[2].choices[0].delta.tool_calls[0], {
       index: 0,
-      function: { arguments: '{"city":"' },
-    });
-    assert.deepEqual(chunks[3].choices[0].delta.tool_calls[0], {
-      index: 0,
-      function: { arguments: 'London"}' },
+      function: { arguments: '{"city":"London"}' },
     });
     assert.equal(chunks.at(-1).choices[0].finish_reason, "tool_calls");
     assert.deepEqual(chunks.at(-1).usage, {
       prompt_tokens: 11,
       completion_tokens: 7,
       total_tokens: 18,
+      prompt_tokens_details: { cached_tokens: 0 },
+      cache_write_tokens: 0,
     });
     assert.ok(sse.endsWith("data: [DONE]\n\n"));
   } finally {
@@ -618,7 +528,7 @@ test("WindsurfExecutor exchanges JWT and forwards tool history over Devin Connec
   }
 });
 
-test("WindsurfExecutor returns an SSE error when Devin auth fails", async () => {
+test("DevinDesktopExecutor returns a JSON error when Devin auth fails", async () => {
   const { baseUrl, server } = await startDevinTestServer(async (path) => {
     if (path === "/exa.auth_pb.AuthService/GetUserJwt") {
       return { status: 401, body: new TextEncoder().encode("not authorized") };
@@ -626,27 +536,21 @@ test("WindsurfExecutor returns an SSE error when Devin auth fails", async () => 
     return null;
   });
   try {
-    const result = await new WindsurfExecutor().execute({
+    const result = await new DevinDesktopExecutor().execute({
       model: "claude-sonnet-4.6",
       stream: true,
       credentials: { accessToken: "sk-ws-test", providerSpecificData: { baseUrl } },
       body: { messages: [{ role: "user", content: "Hello" }] },
     });
-    const sse = await result.response.text();
-    const chunks = sse
-      .split("\n\n")
-      .filter((event) => event.startsWith("data: {"))
-      .map((event) => JSON.parse(event.slice("data: ".length)));
-    assert.equal(chunks.length, 1);
-    assert.equal(chunks[0].error.type, "windsurf_error");
-    assert.match(chunks[0].error.message, /Devin auth error 401/);
-    assert.ok(sse.endsWith("data: [DONE]\n\n"));
+    assert.equal(result.response.status, 401);
+    const body = await result.response.json();
+    assert.match(body.error.message, /Devin Desktop authentication returned HTTP 401/);
   } finally {
     await closeServerLocal(server);
   }
 });
 
-test("WindsurfExecutor never forwards the raw Devin auth error body to the client", async () => {
+test("DevinDesktopExecutor never forwards the raw Devin auth error body to the client", async () => {
   const { baseUrl, server } = await startDevinTestServer(async (path) => {
     if (path === "/exa.auth_pb.AuthService/GetUserJwt") {
       return { status: 401, body: new TextEncoder().encode("leak: token=abc123") };
@@ -654,51 +558,44 @@ test("WindsurfExecutor never forwards the raw Devin auth error body to the clien
     return null;
   });
   try {
-    const result = await new WindsurfExecutor().execute({
+    const result = await new DevinDesktopExecutor().execute({
       model: "claude-sonnet-4.6",
       stream: true,
       credentials: { accessToken: "sk-ws-test", providerSpecificData: { baseUrl } },
       body: { messages: [{ role: "user", content: "Hello" }] },
     });
-    const sse = await result.response.text();
-    const chunk = JSON.parse(sse.split("\n\n")[0].slice("data: ".length));
-    assert.match(chunk.error.message, /Devin auth error 401/, "status detail is still useful");
-    assert.doesNotMatch(
-      chunk.error.message,
-      /token=abc123/,
-      "must not leak the raw upstream response body"
-    );
+    const body = await result.response.json();
+    assert.match(body.error.message, /Devin Desktop authentication returned HTTP 401/);
+    assert.doesNotMatch(body.error.message, /token=abc123/);
   } finally {
     await closeServerLocal(server);
   }
 });
 
-test("WindsurfExecutor replaces an unrecognized thrown error with a fixed generic message", async () => {
+test("DevinDesktopExecutor replaces an unrecognized thrown error with a fixed generic message", async () => {
   const originalFetch = globalThis.fetch;
   // Simulate a bug/network failure whose message happens to embed sensitive text —
-  // this must NEVER reach the client verbatim (Rule #12), unlike our own
-  // hand-authored DevinKnownError messages (covered by the auth-401 test above).
+  // this must NEVER reach the client verbatim (Rule #12).
   globalThis.fetch = (async () => {
     throw new Error("leak: token=abc123");
   }) as typeof globalThis.fetch;
   try {
-    const result = await new WindsurfExecutor().execute({
+    const result = await new DevinDesktopExecutor().execute({
       model: "claude-sonnet-4.6",
       stream: true,
       credentials: { accessToken: "sk-ws-test" },
       body: { messages: [{ role: "user", content: "Hello" }] },
     });
-    const sse = await result.response.text();
-    const chunk = JSON.parse(sse.split("\n\n")[0].slice("data: ".length));
-    assert.doesNotMatch(chunk.error.message, /token=abc123/, "must not forward the raw exception");
-    assert.match(chunk.error.message, /check server logs/i);
+    const body = await result.response.json();
+    assert.doesNotMatch(body.error.message, /token=abc123/);
+    assert.match(body.error.message, /Devin Desktop authentication failed/i);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test("WindsurfExecutor rejects a tool without function.name before authentication", async () => {
-  const result = await new WindsurfExecutor().execute({
+test("DevinDesktopExecutor requires an API key before authentication", async () => {
+  const result = await new DevinDesktopExecutor().execute({
     model: "claude-sonnet-4.6",
     stream: true,
     credentials: {},
@@ -708,90 +605,16 @@ test("WindsurfExecutor rejects a tool without function.name before authenticatio
     },
   });
 
-  assert.equal(result.response.status, 400);
-  assert.deepEqual(await result.response.json(), {
-    error: {
-      message: "Each tool must include a non-empty function.name",
-      type: "invalid_request_error",
-    },
-  });
-});
-
-test("WindsurfExecutor sends a system prompt whenever tools are present", async () => {
-  // Cascade answers `invalid_argument` for a tool-bearing request with an empty
-  // `prompt` (field 2) — verified live 2026-07-25. A client may legitimately send
-  // tools with no system/developer message, so the executor must substitute one.
-  const captureChatRequest = async (messages: unknown[]) => {
-    let chatRequest: Map<number, ProtoField[]> | undefined;
-    const { baseUrl, server } = await startDevinTestServer(async (path, body) => {
-      if (path === "/exa.auth_pb.AuthService/GetUserJwt") {
-        return encodeStringLocal(1, "jwt-xyz");
-      }
-      chatRequest = decodeFieldsLocal(gunzipSync(body.slice(5)));
-      return connectFrameLocal(0x02, new TextEncoder().encode("{}"));
-    });
-    try {
-      const result = await new WindsurfExecutor().execute({
-        model: "claude-sonnet-4.6",
-        stream: true,
-        credentials: { accessToken: "sk-ws-test", providerSpecificData: { baseUrl } },
-        body: {
-          messages,
-          tools: [{ type: "function", function: { name: "get_weather", parameters: {} } }],
-        },
-      });
-      await result.response.text();
-      assert.ok(chatRequest, "chat request should be sent");
-      return fieldStringLocal(chatRequest, 2);
-    } finally {
-      await closeServerLocal(server);
-    }
-  };
-
-  assert.equal(
-    await captureChatRequest([{ role: "user", content: "hi" }]),
-    "You are a helpful coding assistant with access to tools."
-  );
-  // A caller-supplied system prompt must never be replaced by the stand-in.
-  assert.equal(
-    await captureChatRequest([
-      { role: "system", content: "CUSTOM RULES" },
-      { role: "user", content: "hi" },
-    ]),
-    "CUSTOM RULES"
-  );
+  assert.equal(result.response.status, 401);
+  const body = await result.response.json();
+  assert.match(body.error.message, /Devin Desktop API key is required/);
 });
 
 // ─── Dashboard connection probe ──────────────────────────────────────────────
-// The windsurf connection test used to fall through to "Provider test not
-// supported" (red ERR badge on a working connection). Unlike devin-cli, the
-// direct Devin transport has a real auth RPC, so it gets a live probe rather
-// than a checkExpiry stub — checkExpiry cannot tell a revoked-but-unexpired
+// The Devin Desktop connection test has a real auth RPC, so it gets a live probe
+// rather than a checkExpiry stub — checkExpiry cannot tell a revoked-but-unexpired
 // token from a working one.
-test("windsurf exposes a live auth probe for the dashboard connection test", () => {
-  assert.equal(
-    WINDSURF_PROBE_URL,
-    "https://server.codeium.com/exa.auth_pb.AuthService/GetUserJwt",
-    "probe must hit the same AuthService the executor uses"
-  );
-
-  // The credential travels INSIDE the protobuf payload, so the body must be
-  // built per connection — a static body cannot carry it.
-  const body = buildWindsurfProbeBody("probe-token");
-  assert.ok(body instanceof Uint8Array && body.length > 0, "probe body must be encoded bytes");
-  const wire = Buffer.from(body).toString("utf8");
-  assert.match(wire, /devin-session-token\$probe-token/, "token must be normalized into the body");
-
-  // A bare token gains the session prefix; an already-prefixed one is untouched.
-  const prefixed = Buffer.from(buildWindsurfProbeBody("devin-session-token$abc")).toString("utf8");
-  assert.equal(
-    prefixed.match(/devin-session-token\$/g)?.length,
-    1,
-    "an already-prefixed token must not be double-prefixed"
-  );
-});
-
-test("windsurf is wired into OAUTH_TEST_CONFIG with a dynamic body", () => {
+test("devin-desktop is wired into OAUTH_TEST_CONFIG with a dynamic body", () => {
   const cfg = (
     OAUTH_TEST_CONFIG as Record<
       string,
@@ -801,8 +624,8 @@ test("windsurf is wired into OAUTH_TEST_CONFIG with a dynamic body", () => {
         getBody?: (connection: { accessToken?: string }) => Uint8Array;
       }
     >
-  ).windsurf;
-  assert.ok(cfg, "windsurf must have a test config (was: 'Provider test not supported')");
+  )["devin-desktop"];
+  assert.ok(cfg, "devin-desktop must have a test config (was: 'Provider test not supported')");
   assert.equal(cfg.method, "POST", "GetUserJwt is a POST RPC");
   assert.equal(typeof cfg.getBody, "function", "body must be built from the live connection");
   assert.equal(cfg.checkExpiry, undefined, "a real probe must not short-circuit on expiry alone");
@@ -810,11 +633,50 @@ test("windsurf is wired into OAUTH_TEST_CONFIG with a dynamic body", () => {
   // Narrow explicitly rather than optional-chaining: a missing getBody must fail here,
   // not downstream inside Buffer.from().
   const { getBody } = cfg;
-  assert.ok(getBody, "windsurf must build its probe body from the connection");
+  assert.ok(getBody, "devin-desktop must build its probe body from the connection");
   const encoded = getBody({ accessToken: "tok-from-connection" });
   assert.match(
     Buffer.from(encoded).toString("utf8"),
     /tok-from-connection/,
     "getBody must encode the connection's own credential"
   );
+});
+
+// ─── Connection-test probe (ported from the retired windsurf provider) ───────
+// The dashboard test hits AuthService/GetUserJwt: a valid session token returns
+// 200, a revoked one 401 `invalid api key`. Devin authenticates inside the
+// PAYLOAD, so the credential must appear in the encoded body, not a header.
+
+test("DEVIN_DESKTOP_PROBE_URL targets the GetUserJwt auth RPC", () => {
+  assert.match(DEVIN_DESKTOP_PROBE_URL, /^https:\/\//, "probe must be an absolute https URL");
+  assert.match(
+    DEVIN_DESKTOP_PROBE_URL,
+    /AuthService\/GetUserJwt$/,
+    "probe must call the same auth RPC the executor uses before every chat"
+  );
+});
+
+test("buildDevinDesktopProbeBody embeds the credential and normalizes bare JWTs", () => {
+  const wire = Buffer.from(buildDevinDesktopProbeBody("header.payload.sig")).toString("utf8");
+  assert.match(wire, /header\.payload\.sig/, "credential must travel inside the payload");
+  assert.match(
+    wire,
+    /devin-session-token\$header\.payload\.sig/,
+    "a bare JWT must be prefixed with the session-token scheme Devin expects"
+  );
+});
+
+test("buildDevinDesktopProbeBody leaves an already-prefixed key untouched", () => {
+  const wire = Buffer.from(buildDevinDesktopProbeBody("devin-session-token$abc")).toString("utf8");
+  assert.doesNotMatch(
+    wire,
+    /devin-session-token\$devin-session-token\$/,
+    "the session-token prefix must not be applied twice"
+  );
+});
+
+test("buildDevinDesktopProbeBody varies the session id per call", () => {
+  const a = Buffer.from(buildDevinDesktopProbeBody("tok")).toString("base64");
+  const b = Buffer.from(buildDevinDesktopProbeBody("tok")).toString("base64");
+  assert.notEqual(a, b, "each probe carries a fresh session id, so bodies must differ");
 });

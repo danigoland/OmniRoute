@@ -26,7 +26,6 @@ import { raycast } from "./raycast";
 import { kilocode } from "./kilocode";
 import { cline } from "./cline";
 import { devinDesktop } from "./devin-desktop";
-import { windsurf } from "./windsurf";
 import { devinCli } from "./devin-cli";
 import { grokCli } from "./grok-cli";
 import { xaiOauth } from "./xai-oauth";
@@ -57,7 +56,6 @@ export const PROVIDERS = {
   // subscription) models. See registry/clinepass/index.ts.
   clinepass: cline,
   "devin-desktop": devinDesktop,
-  windsurf,
   // devin-cli is served by DevinCliExecutor (local CLI binary over ACP), not the
   // Cascade Connect transport, so it cannot use a browser-minted Devin session
   // JWT — it stays import-token only. See providers/devin-cli.ts.

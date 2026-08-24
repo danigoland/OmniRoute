@@ -1,4 +1,4 @@
-// Devin (windsurf) token exchange failures used to be indistinguishable from a
+// Devin Desktop token exchange failures used to be indistinguishable from a
 // server bug: a stale/reused callback code returns Devin's 401
 // `{"detail":"Invalid or expired code."}`, but the route swallowed it into a
 // generic `{"error":"Internal server error"}` (500). This verifies the typed
@@ -65,13 +65,13 @@ test("isOAuthExchangeError recognizes real instances, rejects plain Errors, and 
   );
 });
 
-// ── POST /api/oauth/windsurf/exchange — route-level ────────────────────────
+// ── POST /api/oauth/devin-desktop/exchange — route-level ────────────────────
 
-test("POST /api/oauth/windsurf/exchange with a stale code returns 400 with an actionable message", async () => {
+test("POST /api/oauth/devin-desktop/exchange with a stale code returns 400 with an actionable message", async () => {
   globalThis.fetch = async () =>
     new Response('{"detail":"Invalid or expired code."}', { status: 401 });
 
-  const res = await postRoute("windsurf", "exchange", {
+  const res = await postRoute("devin-desktop", "exchange", {
     code: "stale",
     redirectUri: "http://127.0.0.1:59653/callback",
     codeVerifier: "v",
@@ -81,10 +81,10 @@ test("POST /api/oauth/windsurf/exchange with a stale code returns 400 with an ac
   assert.match(String(body.error), /expired or was already used/);
 });
 
-test("POST /api/oauth/windsurf/exchange never leaks the raw upstream body (Hard Rule #12)", async () => {
+test("POST /api/oauth/devin-desktop/exchange never leaks the raw upstream body (Hard Rule #12)", async () => {
   globalThis.fetch = async () => new Response("leak: token=abc123", { status: 401 });
 
-  const res = await postRoute("windsurf", "exchange", {
+  const res = await postRoute("devin-desktop", "exchange", {
     code: "stale",
     redirectUri: "http://127.0.0.1:59653/callback",
     codeVerifier: "v",
@@ -93,10 +93,10 @@ test("POST /api/oauth/windsurf/exchange never leaks the raw upstream body (Hard 
   assert.doesNotMatch(String(body.error), /token=abc123/, "must not leak the upstream error body");
 });
 
-test("POST /api/oauth/windsurf/exchange with an upstream outage returns 502", async () => {
+test("POST /api/oauth/devin-desktop/exchange with an upstream outage returns 502", async () => {
   globalThis.fetch = async () => new Response("service unavailable", { status: 503 });
 
-  const res = await postRoute("windsurf", "exchange", {
+  const res = await postRoute("devin-desktop", "exchange", {
     code: "any",
     redirectUri: "http://127.0.0.1:59653/callback",
     codeVerifier: "v",

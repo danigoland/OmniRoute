@@ -1,8 +1,8 @@
-// eslint-disable-next-line no-restricted-imports -- probe constants owned by windsurf executor; shared via executor re-export until extracted to a config boundary
+// eslint-disable-next-line no-restricted-imports -- probe constants owned by the devin-desktop executor; shared via executor re-export until extracted to a config boundary
 import {
-  WINDSURF_PROBE_URL,
-  buildWindsurfProbeBody,
-} from "@omniroute/open-sse/executors/windsurf.ts";
+  DEVIN_DESKTOP_PROBE_URL,
+  buildDevinDesktopProbeBody,
+} from "@omniroute/open-sse/executors/devin-desktop.ts";
 import { buildGitLabOAuthEndpoints, resolveGitLabOAuthBaseUrl } from "@/lib/oauth/gitlab";
 import { ANTIGRAVITY_RUNTIME_BASE_URLS } from "@omniroute/open-sse/config/antigravityUpstream.ts";
 import { getAntigravityContentHeaders } from "@omniroute/open-sse/services/antigravityHeaders.ts";
@@ -83,17 +83,31 @@ export interface OAuthTestConfigEntry {
   authHeader?: string;
   authPrefix?: string;
   extraHeaders?: Record<string, string>;
-  body?: string;
+  body?: string | Uint8Array<ArrayBuffer>;
   acceptStatuses?: number[];
   inconclusiveStatuses?: number[];
   checkExpiry?: boolean;
   refreshable?: boolean;
   getUrl?: (connection: any) => string;
-  getBody?: (connection: any) => string;
+  getBody?: (connection: any) => string | Uint8Array<ArrayBuffer>;
   buildProbe?: (
     connection: any,
     accessToken: string
   ) => OAuthTestProbeRequest | Promise<OAuthTestProbeRequest>;
+}
+
+/**
+ * Body-side twin of `getUrl`. Providers that authenticate inside the request
+ * payload (devin-desktop embeds the key in a protobuf message) cannot use a
+ * static `body`, because the credential is only known at run time. Callers pass
+ * the credential they want encoded: on a post-refresh retry that must be the
+ * refreshed token, not the stale one still stored on the connection record.
+ */
+export function probeBodyFor(
+  config: OAuthTestConfigEntry,
+  connection: any
+): string | Uint8Array<ArrayBuffer> | undefined {
+  return typeof config.getBody === "function" ? config.getBody(connection) : config.body;
 }
 
 export interface OAuthProbeInconclusiveClassification {
@@ -254,16 +268,6 @@ export const OAUTH_TEST_CONFIG: Record<string, OAuthTestConfigEntry> = {
     checkExpiry: true,
   },
   "devin-desktop": {
-    // Devin Desktop authentication is import-only: the copied API key has no
-    // refresh token or known expiry. Validate token presence here; real
-    // connectivity is exercised by chat requests.
-    checkExpiry: true,
-    refreshable: false,
-  },
-  windsurf: {
-    // Same gap as grok-cli #7610 / devin-cli: absent from this table, so a working
-    // Devin connection showed a red "Provider test not supported" badge.
-    //
     // Unlike devin-cli (local binary over ACP, no HTTP surface), the direct Devin
     // transport has a real, cheap auth probe: AuthService/GetUserJwt — the same call
     // the executor makes before every chat. A valid session token returns 200; a
@@ -273,13 +277,16 @@ export const OAUTH_TEST_CONFIG: Record<string, OAuthTestConfigEntry> = {
     //
     // Devin authenticates INSIDE the protobuf payload rather than via a header, so
     // the body must be built per connection — hence getBody() (see route.ts).
-    url: WINDSURF_PROBE_URL,
-    getBody: (connection: any) => buildWindsurfProbeBody(String(connection?.accessToken ?? "")),
+    // Credentials arrive as accessToken (browser PKCE) or apiKey (pasted key).
+    url: DEVIN_DESKTOP_PROBE_URL,
+    getBody: (connection: any) =>
+      buildDevinDesktopProbeBody(String(connection?.accessToken ?? connection?.apiKey ?? "")),
     method: "POST",
     // The key travels in the body; send a harmless bearer so the shared header
     // builder has something to interpolate.
     authHeader: "Authorization",
     authPrefix: "Bearer ",
+    refreshable: false,
     extraHeaders: {
       "Content-Type": "application/proto",
       "connect-protocol-version": "1",

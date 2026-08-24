@@ -273,7 +273,7 @@ export const OAUTH_PROVIDERS = {
     color: "#6366F1",
     textIcon: "DV",
     authHint:
-      "Run `devin auth login` (or paste your WINDSURF_API_KEY) and provide the CLI credential here. Requires the Devin CLI binary: https://cli.devin.ai — browser login is available on the Windsurf provider instead.",
+      "Run `devin auth login` (or paste your WINDSURF_API_KEY) and provide the CLI credential here. Requires the Devin CLI binary: https://cli.devin.ai — browser login is available on the Devin Desktop provider instead.",
     website: "https://cli.devin.ai",
   },
   "codebuddy-cn": {

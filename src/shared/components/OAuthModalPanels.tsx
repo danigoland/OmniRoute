@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import type { GoogleLoopbackHint } from "@/lib/oauth/utils/googleLoopbackHint";
 import type { PkceLoopbackMismatchHint } from "@/lib/oauth/utils/pkceLoopbackWarning";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
-import { WINDSURF_CONFIG } from "@/lib/oauth/constants/oauth";
+import { DEVIN_DESKTOP_CONFIG } from "@/lib/oauth/constants/oauth";
 
 import Button from "./Button";
 import Input from "./Input";
@@ -327,11 +327,11 @@ function OAuthRemoteAccessNotices({
         <span className="material-symbols-outlined text-sm align-middle mr-1">info</span>
         {t("remoteAccessInfo")}
       </div>
-      {provider === "windsurf" && (
+      {provider === "devin-desktop" && (
         <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-200">
           <span className="material-symbols-outlined text-sm align-middle mr-1">info</span>
           {t.rich("windsurfLoopbackNotice", {
-            address: `${WINDSURF_CONFIG.callbackHost}:${WINDSURF_CONFIG.callbackPort}`,
+            address: `${DEVIN_DESKTOP_CONFIG.callbackHost}:${DEVIN_DESKTOP_CONFIG.callbackPort}`,
             code: (chunks) => <code className="font-mono">{chunks}</code>,
           })}
         </div>

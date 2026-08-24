@@ -464,7 +464,7 @@ test("device and import-token providers expose the flow-specific fields expected
   assert.equal(CURSOR_CONFIG.dbKeys.machineId, "storage.serviceMachineId");
   assert.equal(PROVIDERS.trae.flowType, "import_token");
   assert.equal(typeof TRAE_CONFIG.apiEndpoint, "string");
-  assert.equal(PROVIDERS["devin-desktop"].flowType, "import_token");
+  assert.equal(PROVIDERS["devin-desktop"].flowType, "authorization_code_pkce");
   assert.equal(PROVIDERS["devin-cli"].flowType, "import_token");
   assert.equal(DEVIN_DESKTOP_CONFIG.apiServerUrl, "https://server.codeium.com");
   assert.equal(DEVIN_DESKTOP_CONFIG.inferenceUrl, "https://inference.codeium.com");

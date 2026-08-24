@@ -54,7 +54,7 @@ import { refreshKiroToken } from "./tokenRefresh/providers/kiro.ts";
 import { refreshQoderToken } from "./tokenRefresh/providers/qoder.ts";
 import { refreshGitHubToken } from "./tokenRefresh/providers/github.ts";
 import { refreshCopilotToken } from "./tokenRefresh/providers/copilot.ts";
-import { refreshWindsurfToken } from "./tokenRefresh/providers/windsurf.ts";
+import { refreshDevinToken } from "./tokenRefresh/providers/devin.ts";
 
 export {
   refreshCodebuddyCnToken,
@@ -70,7 +70,7 @@ export {
   refreshQoderToken,
   refreshGitHubToken,
   refreshCopilotToken,
-  refreshWindsurfToken,
+  refreshDevinToken,
   extractOAuthErrorCode,
   isUnrecoverableRefreshError,
   isProviderBlocked,
@@ -430,9 +430,9 @@ async function _getAccessTokenInternal(provider, credentials, log, proxyConfig: 
         proxyConfig
       );
 
-    case "windsurf":
+    case "devin-desktop":
     case "devin-cli":
-      return await refreshWindsurfToken(
+      return await refreshDevinToken(
         credentials.refreshToken,
         credentials.providerSpecificData,
         log

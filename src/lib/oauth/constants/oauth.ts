@@ -446,29 +446,27 @@ export const RAYCAST_CONFIG = {
     "macOS only: use Auto-Import (Keychain + Raycast DB) or capture Bearer, X-Raycast-DeviceId, and optional X-Raycast-Signature JWT from backend.raycast.com traffic.",
 };
 
-// Devin Desktop / Devin CLI import-token configuration.
-// Public product identity is Devin. The upstream transport still identifies
-// the IDE as `windsurf`; authentication itself is import-only.
+// Devin Desktop / Devin CLI configuration.
+//
+// 2026-07-25: browser login uses Devin's CLI PKCE flow. The old
+// `app.devin.ai/editor/signin` endpoint stayed 404 after the rebrand, but Devin
+// exposes a working CLI authorization flow at `app.devin.ai/auth/cli/continue`,
+// exchanged at `api.devin.ai/auth/cli/token`.
+//
+// The resulting JWT is the Devin session token consumed by the Devin Desktop
+// executor, which prefixes it with `devin-session-token$` for
+// AuthService/GetUserJwt. The previously imported `sk-ws-…`/`ott$…` Windsurf
+// IDE tokens are a different identity provider, not valid Devin session tokens;
+// `GetUserJwt` rejects them with "Invalid token".
+//
+// `apiServerUrl` is the chat host used by the Desktop executor. The PKCE token
+// exchange uses the separate `authServerUrl` because Devin serves authentication
+// from `api.devin.ai`.
 export const DEVIN_DESKTOP_CONFIG = {
   apiServerUrl: "https://server.codeium.com",
   inferenceUrl: "https://inference.codeium.com",
   ideName: "windsurf",
   defaultVersion: "3.6.27",
-};
-
-// Windsurf / Devin CLI Configuration
-//
-// 2026-07-25: browser login restored via Devin's CLI PKCE flow.
-//   The old `app.devin.ai/editor/signin` endpoint stayed 404 after the rebrand,
-//   but Devin exposes a working CLI authorization flow at
-//   `app.devin.ai/auth/cli/continue`, exchanged at `api.devin.ai/auth/cli/token`.
-//   The resulting JWT is the Devin session token consumed by WindsurfExecutor,
-//   which prefixes it with `devin-session-token$` for AuthService/GetUserJwt.
-//
-//   The previously imported `sk-ws-…`/`ott$…` Windsurf tokens are NOT valid Devin
-//   session tokens — `GetUserJwt` rejects them with "Invalid token" — so browser
-//   login is the supported path.
-export const WINDSURF_CONFIG = {
   // Devin CLI authorization page. Requires PKCE S256 plus a loopback redirect_uri.
   authorizeUrl: "https://app.devin.ai/auth/cli/continue",
   codeChallengeMethod: "S256" as const,
@@ -476,16 +474,12 @@ export const WINDSURF_CONFIG = {
   callbackPort: 59653,
   callbackPath: "/callback",
   callbackHost: "127.0.0.1",
-  // Devin CLI token exchange endpoint (JSON, not protobuf).
-  apiServerUrl: "https://api.devin.ai",
+  authServerUrl: "https://api.devin.ai",
   exchangePath: "/auth/cli/token",
-  // Default Cascade chat host; GetUserJwt may return an account-specific override.
-  inferenceUrl: "https://server.codeium.com",
   // Legacy paste-token page, retained because import-token remains available for
   // accounts that already hold a genuine Devin session token.
   showAuthTokenUrl: "https://windsurf.com/show-auth-token",
   // IDE identity sent with every Connect request.
-  ideName: "windsurf",
   ideVersion: "3.2.23",
   extensionVersion: "1.48.2",
 };
@@ -550,7 +544,6 @@ export const PROVIDERS = {
   KILOCODE: "kilocode",
   CLINE: "cline",
   CLINEPASS: "clinepass",
-  WINDSURF: "windsurf",
   DEVIN_DESKTOP: "devin-desktop",
   DEVIN_CLI: "devin-cli",
   TRAE: "trae",

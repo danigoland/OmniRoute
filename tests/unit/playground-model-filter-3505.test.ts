@@ -33,29 +33,21 @@ test("#3505 an exact bare match is included; no provider returns all", () => {
 });
 
 // Follow-up to the same "-"/None symptom, different cause: a BUILT-IN provider whose
-// catalog namespace is its registry alias (windsurf -> "ws"). /v1/models emits both
-// `windsurf/...` and `ws/...` under the default MODELS_CATALOG_PREFIX_MODE="dual", so
-// filtering by the id alone happens to work. Under "alias" mode the id-prefixed rows are
-// dropped entirely and the picker goes empty — verified live: prefix=alias returns 184
-// `ws/` rows and 0 `windsurf/` rows.
+// catalog namespace is its registry alias. `/v1/models` emits both the id and alias
+// namespaces under the default MODELS_CATALOG_PREFIX_MODE="dual", so filtering by
+// the id alone happens to work. Under "alias" mode the id-prefixed rows are dropped
+// entirely and the picker goes empty.
 test("alias-namespaced provider resolves under dual prefix mode", () => {
-  const dual = ["windsurf/swe-1.7", "ws/swe-1.7", "openai/gpt-4o"];
-  assert.deepEqual(filterModelsByProvider(dual, "windsurf", "ws"), [
-    "windsurf/swe-1.7",
-    "ws/swe-1.7",
-  ]);
+  const dual = ["legacy/swe-1.7", "lg/swe-1.7", "openai/gpt-4o"];
+  assert.deepEqual(filterModelsByProvider(dual, "legacy", "lg"), ["legacy/swe-1.7", "lg/swe-1.7"]);
 });
 
 test("alias-namespaced provider still resolves when the catalog emits ONLY the alias", () => {
-  const aliasOnly = ["ws/swe-1.7", "ws/claude-opus-5-medium", "openai/gpt-4o"];
+  const aliasOnly = ["lg/swe-1.7", "lg/claude-opus-5-medium", "openai/gpt-4o"];
+  assert.deepEqual(filterModelsByProvider(aliasOnly, "legacy"), [], "the bug: id matches nothing");
   assert.deepEqual(
-    filterModelsByProvider(aliasOnly, "windsurf"),
-    [],
-    "the bug: id matches nothing"
-  );
-  assert.deepEqual(
-    filterModelsByProvider(aliasOnly, "windsurf", "ws"),
-    ["ws/swe-1.7", "ws/claude-opus-5-medium"],
+    filterModelsByProvider(aliasOnly, "legacy", "lg"),
+    ["lg/swe-1.7", "lg/claude-opus-5-medium"],
     "the fix: the alias namespace is accepted too"
   );
 });

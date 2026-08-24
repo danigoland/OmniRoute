@@ -6,7 +6,7 @@ import type { RefreshLogger } from "../shared.ts";
 const EXPIRY_SKEW_MS = 5 * 60 * 1000;
 
 /**
- * Refresh Windsurf (Devin) credentials.
+ * Refresh Devin credentials.
  *
  * Devin's CLI authorization flow issues a single long-lived JWT and exposes no
  * refresh endpoint: the same token serves as both access and refresh material
@@ -14,13 +14,13 @@ const EXPIRY_SKEW_MS = 5 * 60 * 1000;
  * only useful work here is deciding between "still valid, nothing to do" and
  * "expired, re-authentication required".
  */
-export async function refreshWindsurfToken(
+export async function refreshDevinToken(
   refreshToken: string,
   _providerSpecificData: Record<string, unknown> | null | undefined,
   log: RefreshLogger
 ): Promise<{ error: string; code: string } | null> {
   if (!refreshToken) {
-    log?.warn?.("TOKEN_REFRESH", "No Devin token stored for Windsurf — re-authentication required");
+    log?.warn?.("TOKEN_REFRESH", "No Devin token stored — re-authentication required");
     return { error: "unrecoverable_refresh_error", code: "MISSING_TOKEN" };
   }
 

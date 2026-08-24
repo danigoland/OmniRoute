@@ -1,17 +1,17 @@
 /**
- * Devin CLI browser PKCE flow — used by the `windsurf` / `devin-cli` providers.
+ * Devin CLI browser PKCE flow — used by the `devin-desktop` / `devin-cli` providers.
  *
  * Devin authorizes CLI clients at `app.devin.ai/auth/cli/continue` and exchanges
  * the returned code for a session JWT at `api.devin.ai/auth/cli/token`. That JWT
- * is the credential `WindsurfExecutor` prefixes with `devin-session-token$` when
- * calling `AuthService/GetUserJwt`.
+ * is the credential the Devin Desktop executor prefixes with `devin-session-token$`
+ * when calling `AuthService/GetUserJwt`.
  *
  * The exchange is plain JSON, so it does not reuse the shared form-encoded OAuth
  * helper. Devin also ignores `client_id`/`grant_type`: the request body carries
  * only `code` and `code_verifier`.
  */
 
-import { WINDSURF_CONFIG } from "../constants/oauth";
+import { DEVIN_DESKTOP_CONFIG } from "../constants/oauth";
 import { OAuthExchangeError } from "../errors";
 
 /** Long-lived fallback when a returned token carries no parseable `exp` claim. */
@@ -29,8 +29,8 @@ export function isDevinCliTokens(value: unknown): value is DevinCliTokens {
  * Build the Devin CLI authorization URL. `prompt=select_account` matches the
  * Devin CLI so a user with several accounts can choose which one to link.
  */
-export function buildWindsurfAuthUrl(
-  config: typeof WINDSURF_CONFIG,
+export function buildDevinAuthUrl(
+  config: typeof DEVIN_DESKTOP_CONFIG,
   redirectUri: string,
   state: string,
   codeChallenge: string
@@ -46,8 +46,8 @@ export function buildWindsurfAuthUrl(
 }
 
 /** Exchange a Devin authorization code for its session JWT. */
-export async function exchangeWindsurfToken(
-  config: typeof WINDSURF_CONFIG,
+export async function exchangeDevinToken(
+  config: typeof DEVIN_DESKTOP_CONFIG,
   code: string,
   _redirectUri: string,
   codeVerifier: string
@@ -56,7 +56,7 @@ export async function exchangeWindsurfToken(
     throw new Error("Devin token exchange requires the PKCE code_verifier");
   }
 
-  const response = await fetch(`${config.apiServerUrl}${config.exchangePath}`, {
+  const response = await fetch(`${config.authServerUrl}${config.exchangePath}`, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify({ code, code_verifier: codeVerifier }),
