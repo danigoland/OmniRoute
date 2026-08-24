@@ -7,12 +7,7 @@ import type { PkceLoopbackMismatchHint } from "@/lib/oauth/utils/pkceLoopbackWar
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 import Button from "./Button";
-// Devin's CLI authorization flow accepts exactly one redirect target; keep in
-// sync with DEVIN_DESKTOP_CONFIG in src/lib/oauth/constants/oauth.ts. Local
-// literals: importing that module drags open-sse/server code (node:fs) into
-// the client bundle and Turbopack rejects the build.
-const DEVIN_CALLBACK_HOST = "127.0.0.1";
-const DEVIN_CALLBACK_PORT = 59653;
+import { DEVIN_DESKTOP_CONFIG } from "@/lib/oauth/constants/devinDesktop";
 import Input from "./Input";
 
 export function formatDeviceCodeRemaining(seconds: number): string {
@@ -336,7 +331,7 @@ function OAuthRemoteAccessNotices({
         <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-200">
           <span className="material-symbols-outlined text-sm align-middle mr-1">info</span>
           {t.rich("windsurfLoopbackNotice", {
-            address: `${DEVIN_CALLBACK_HOST}:${DEVIN_CALLBACK_PORT}`,
+            address: `${DEVIN_DESKTOP_CONFIG.callbackHost}:${DEVIN_DESKTOP_CONFIG.callbackPort}`,
             code: (chunks) => <code className="font-mono">{chunks}</code>,
           })}
         </div>

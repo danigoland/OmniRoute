@@ -21,7 +21,7 @@ test("OAuthModalPanels renders windsurfLoopbackNotice only when provider === dev
 test("windsurfLoopbackNotice sources its address from DEVIN_DESKTOP_CONFIG, not a hardcoded port", () => {
   assert.match(
     panelsSource,
-    /import \{ DEVIN_DESKTOP_CONFIG \} from "@\/lib\/oauth\/constants\/oauth";/
+    /import \{ DEVIN_DESKTOP_CONFIG \} from "@\/lib\/oauth\/constants\/devinDesktop";/
   );
   assert.match(
     panelsSource,

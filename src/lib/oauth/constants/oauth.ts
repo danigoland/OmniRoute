@@ -462,27 +462,10 @@ export const RAYCAST_CONFIG = {
 // `apiServerUrl` is the chat host used by the Desktop executor. The PKCE token
 // exchange uses the separate `authServerUrl` because Devin serves authentication
 // from `api.devin.ai`.
-export const DEVIN_DESKTOP_CONFIG = {
-  apiServerUrl: "https://server.codeium.com",
-  inferenceUrl: "https://inference.codeium.com",
-  ideName: "windsurf",
-  defaultVersion: "3.6.27",
-  // Devin CLI authorization page. Requires PKCE S256 plus a loopback redirect_uri.
-  authorizeUrl: "https://app.devin.ai/auth/cli/continue",
-  codeChallengeMethod: "S256" as const,
-  // Devin's CLI callback listens on a fixed loopback port.
-  callbackPort: 59653,
-  callbackPath: "/callback",
-  callbackHost: "127.0.0.1",
-  authServerUrl: "https://api.devin.ai",
-  exchangePath: "/auth/cli/token",
-  // Legacy paste-token page, retained because import-token remains available for
-  // accounts that already hold a genuine Devin session token.
-  showAuthTokenUrl: "https://windsurf.com/show-auth-token",
-  // IDE identity sent with every Connect request.
-  ideVersion: "3.2.23",
-  extensionVersion: "1.48.2",
-};
+// DEVIN_DESKTOP_CONFIG lives in a dependency-free leaf so client components can
+// import it without dragging this module's open-sse/server imports (node:fs)
+// into the browser bundle. Re-exported here to keep server consumers unchanged.
+export { DEVIN_DESKTOP_CONFIG } from "./devinDesktop";
 
 // Zed IDE credential import — no standard OAuth flow.
 // Credentials are extracted from the OS keychain via POST /api/providers/zed/import.

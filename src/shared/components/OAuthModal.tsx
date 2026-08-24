@@ -27,16 +27,14 @@ import {
   buildPkceLoopbackMismatchHint,
   type PkceLoopbackMismatchHint,
 } from "@/lib/oauth/utils/pkceLoopbackWarning";
+// Devin's CLI authorization flow accepts exactly one redirect target. Imported
+// from the dependency-free leaf so this client component stays clear of
+// server-only modules (node:fs) in the browser bundle.
+import { DEVIN_DESKTOP_CONFIG } from "@/lib/oauth/constants/devinDesktop";
 
 export { formatDeviceCodeRemaining } from "./OAuthModalPanels";
 
 const GOOGLE_OAUTH_PROVIDERS = new Set(["antigravity", "agy"]);
-
-// Devin's CLI authorization flow accepts exactly one redirect target; these must
-// stay in sync with DEVIN_DESKTOP_CONFIG in src/lib/oauth/constants/oauth.ts.
-const DEVIN_CALLBACK_HOST = "127.0.0.1";
-const DEVIN_CALLBACK_PORT = 59653;
-const DEVIN_CALLBACK_PATH = "/callback";
 
 /** Providers that use a local callback server on a fixed/random port (PKCE browser flow). */
 const PKCE_CALLBACK_SERVER_PROVIDERS = new Set([
@@ -598,7 +596,7 @@ export default function OAuthModal({
           // on the USER's machine, not the server, so the modal falls through to
           // the paste-the-callback-URL step below and the browser never needs to
           // reach it. On true localhost the callback server above handles it.
-          redirectUri = `http://${DEVIN_CALLBACK_HOST}:${DEVIN_CALLBACK_PORT}${DEVIN_CALLBACK_PATH}`;
+          redirectUri = `http://${DEVIN_DESKTOP_CONFIG.callbackHost}:${DEVIN_DESKTOP_CONFIG.callbackPort}${DEVIN_DESKTOP_CONFIG.callbackPath}`;
         } else if (provider === "devin-cli") {
           // Retained callback-path fallback for the retired browser flow.
           const port = window.location.port || "20128";
