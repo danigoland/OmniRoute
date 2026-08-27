@@ -7,12 +7,13 @@
  * upstream. This strips it back to the real base id and surfaces the level as reasoning_effort so
  * the OpenAI→Claude translator / Claude-Code bridge can turn it into Claude thinking/effort config.
  * An explicit client-supplied effort always wins; native Claude passthrough (sourceFormat === claude)
- * is left untouched (it carries its own `thinking`). The body is mutated in place (model +
- * reasoning_effort), byte-identical to the previous inline block; the new effectiveModel and an
- * optional log line are returned for the handler to apply.
+ * is left untouched (it carries its own `thinking`). If the provider catalog already lists the
+ * full suffixed id (Devin, Cursor, …), it is a wire model — do not strip. The body is mutated in
+ * place (model + reasoning_effort); the new effectiveModel and an optional log line are returned
+ * for the handler to apply.
  */
 
-import { splitClaudeEffortSuffix } from "../../config/providerModels.ts";
+import { getProviderModels, splitClaudeEffortSuffix } from "../../config/providerModels.ts";
 import { isClaudeCodeCompatibleProvider } from "../../services/claudeCodeCompatible.ts";
 import { FORMATS } from "../../translator/formats.ts";
 import { isKnownClaudeEffortBaseModel } from "../../utils/claudeEffortVariants.ts";
@@ -43,6 +44,13 @@ export function applyClaudeEffortVariant(opts: {
 
   if (typeof effectiveModel === "string") {
     const { baseModel, effort } = splitClaudeEffortSuffix(effectiveModel);
+    if (
+      effort &&
+      provider &&
+      getProviderModels(provider).some((model) => model.id === effectiveModel)
+    ) {
+      return { effectiveModel, log: null };
+    }
     const isDirectClaudeLane = provider === "claude" || isClaudeCodeCompatibleProvider(provider);
     if (effort && (isDirectClaudeLane || isKnownClaudeEffortBaseModel(baseModel))) {
       effectiveModel = baseModel;

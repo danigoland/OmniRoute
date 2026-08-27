@@ -124,6 +124,20 @@ test("non-claude provider serving a real Claude model strips the effort suffix",
   assert.equal(body.reasoning_effort, "high");
 });
 
+test("catalog that already lists the suffixed id keeps it as the wire model (cursor)", () => {
+  const body: Record<string, unknown> = { model: "claude-opus-5-low", messages: [] };
+  const r = applyClaudeEffortVariant({
+    provider: "cursor",
+    effectiveModel: "claude-opus-5-low",
+    body,
+    sourceFormat: FORMATS.OPENAI,
+  });
+  assert.equal(r.effectiveModel, "claude-opus-5-low");
+  assert.equal(body.model, "claude-opus-5-low");
+  assert.equal(body.reasoning_effort, undefined);
+  assert.equal(r.log, null);
+});
+
 test("safety guard: non-claude provider with a non-Claude model ending in a suffix word is left unchanged", () => {
   const body: Record<string, unknown> = { model: "custom-model-high", messages: [] };
   const r = applyClaudeEffortVariant({
@@ -172,4 +186,32 @@ test("no-think alias's explicit reasoning_effort:none is not overwritten by a st
   assert.equal(r.effectiveModel, "claude-sonnet-5");
   assert.equal(body.model, "claude-sonnet-5");
   assert.equal(body.reasoning_effort, "none");
+});
+
+test("devin-desktop keeps Claude effort suffix as the wire model id", () => {
+  const body: Record<string, unknown> = { model: "claude-sonnet-5-low", messages: [] };
+  const r = applyClaudeEffortVariant({
+    provider: "devin-desktop",
+    effectiveModel: "claude-sonnet-5-low",
+    body,
+    sourceFormat: FORMATS.OPENAI,
+  });
+  assert.equal(r.effectiveModel, "claude-sonnet-5-low");
+  assert.equal(body.model, "claude-sonnet-5-low");
+  assert.equal(body.reasoning_effort, undefined);
+  assert.equal(r.log, null);
+});
+
+test("devin-cli keeps Claude effort suffix as the wire model id", () => {
+  const body: Record<string, unknown> = { model: "claude-opus-5-medium", messages: [] };
+  const r = applyClaudeEffortVariant({
+    provider: "devin-cli",
+    effectiveModel: "claude-opus-5-medium",
+    body,
+    sourceFormat: FORMATS.OPENAI,
+  });
+  assert.equal(r.effectiveModel, "claude-opus-5-medium");
+  assert.equal(body.model, "claude-opus-5-medium");
+  assert.equal(body.reasoning_effort, undefined);
+  assert.equal(r.log, null);
 });
